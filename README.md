@@ -72,7 +72,7 @@ end
 
 # Results in different AST node types:
 # - :link for regular internal links
-# - :category for category links  
+# - :category for category links
 # - :file for file/media links
 ```
 
@@ -119,7 +119,7 @@ WikitextEx produces a structured AST where each node follows this pattern:
 ### Supported AST Node Types
 
 - `:text` - Plain text content
-- `:header` - Headers (=, ==, ===, etc.)  
+- `:header` - Headers (=, ==, ===, etc.)
 - `:template` - Template invocations ({{template|args}})
 - `:link` - Internal wiki links ([[Page]])
 - `:category` - Category links ([[Category:Name]])
@@ -127,7 +127,7 @@ WikitextEx produces a structured AST where each node follows this pattern:
 - `:interlang_link` - Interlanguage links ([[de:Page]])
 - `:bold` - Bold formatting ('''text''')
 - `:italic` - Italic formatting (''text'')
-- `:list_item` - List items (* or #)
+- `:list_item` - List items (\* or #)
 - `:table` - Tables ({| ... |})
 - `:table_row` - Table rows
 - `:table_cell` - Table cells (header or data)
@@ -166,12 +166,12 @@ defmodule WikitextProcessor do
         ast
         |> find_links()
         |> Enum.map(& &1.value.target)
-      
+
       {:error, _} ->
         []
     end
   end
-  
+
   defp find_links(ast_nodes) do
     Enum.flat_map(ast_nodes, fn
       %WikitextEx.AST{type: :link} = node -> [node]
@@ -204,16 +204,19 @@ mix docs
 WikitextEx works well for typical wiki content, but has some known limitations:
 
 ### Parser Edge Cases
+
 - **Complex whitespace handling**: Some complex whitespace patterns may not parse correctly
 - **Deeply nested structures**: Very deeply nested content may cause parsing issues
 - **Advanced MediaWiki syntax**: Some advanced or rarely-used MediaWiki features are not yet supported
 - **Large content blocks**: Performance may degrade with extremely large wikitext files
 
 ### Parsing Behavior
+
 - The parser may return partial results with unparsed content in the `rest` field for complex edge cases
 - Most common wikitext patterns parse successfully
 
 ### Recommendations
+
 - **Test with your content**: Always test WikitextEx with your specific wikitext before production use
 - **Handle partial parsing**: Check the `rest` field in parse results for unparsed content
 - **Report issues**: Please report parsing failures with examples to help improve the parser
@@ -238,10 +241,11 @@ mix test
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](https://github.com/your-username/wikitext_ex/blob/main/LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/phiilu/wikitext_ex/blob/main/LICENSE) file for details.
 
 ## Acknowledgments
 
 - Built with [NimbleParsec](https://github.com/dashbitco/nimble_parsec) for robust parsing
 - Inspired by MediaWiki's wikitext specification
 - Designed for use with Wikipedia and other MediaWiki-based wikis
+
