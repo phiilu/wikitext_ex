@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2025-07-25
+
+### Added
+- Comprehensive doctests for all modules (11 doctests total)
+- New test file `test/doctest_test.exs` to run doctests for all modules
+- Doctests for `WikitextEx.AST.text_content/1` function
+- Executable doctests converted from Quick Start examples
+
+### Fixed
+- Broken doctests in `WikitextEx.parse/1` with correct AST structure
+- Doctests in `WikitextEx.Parser` module
+- Documentation examples now properly executable as tests
+
+### Changed
+- Enhanced documentation with working code examples
+- All 11 doctests now pass alongside existing 58 tests
+
 ## [0.1.0] - 2025-01-25
 
 ### Added
@@ -43,5 +60,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `WikitextEx.extract_text/1` - Get plain text content
 - `WikitextEx.AST.text_content/1` - Extract text from AST children
 
-[Unreleased]: https://github.com/your-username/wikitext_ex/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/your-username/wikitext_ex/releases/tag/v0.1.0
+[Unreleased]: https://github.com/phiilu/wikitext_ex/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/phiilu/wikitext_ex/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/phiilu/wikitext_ex/releases/tag/v0.1.0
