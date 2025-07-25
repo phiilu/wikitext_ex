@@ -7,12 +7,15 @@ defmodule WikitextEx do
 
   ## Quick Start
 
-      # Parse wikitext into AST
-      {:ok, ast, _, _, _, _} = WikitextEx.parse("'''Bold''' and ''italic'' text")
-
-      # Work with the parsed AST
-      templates = WikitextEx.find_templates(ast)
-      links = WikitextEx.find_links(ast)
+      iex> # Parse wikitext into AST
+      iex> {:ok, ast, _, _, _, _} = WikitextEx.parse("'''Bold''' and ''italic'' text")
+      iex> # Work with the parsed AST
+      iex> templates = WikitextEx.find_templates(ast)
+      iex> length(templates)
+      0
+      iex> text_content = WikitextEx.extract_text(ast)
+      iex> text_content
+      "Bold and italic text"
 
   ## Main Functions
 
@@ -34,17 +37,19 @@ defmodule WikitextEx do
   ## Examples
 
       iex> {:ok, ast, _, _, _, _} = WikitextEx.parse("'''Bold text'''")
-      iex> [%WikitextEx.AST{type: :bold}] = ast
-      [%WikitextEx.AST{type: :bold, children: [%WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: "Bold text"}}]}]
+      iex> [%WikitextEx.AST{type: :bold, value: nil, children: [%WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: "Bold text"}, children: []}]}] = ast
+      [%WikitextEx.AST{type: :bold, value: nil, children: [%WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: "Bold text"}, children: []}]}]
 
       iex> {:ok, ast, _, _, _, _} = WikitextEx.parse("{{template|arg}}")
-      iex> [%WikitextEx.AST{type: :template, value: %WikitextEx.AST.Template{name: "template"}}] = ast
-      [%WikitextEx.AST{type: :template, value: %WikitextEx.AST.Template{name: "template", args: [positional: "arg"]}}]
+      iex> [%WikitextEx.AST{type: :template, value: %WikitextEx.AST.Template{name: "template", args: [positional: "arg"]}, children: []}] = ast
+      [%WikitextEx.AST{type: :template, value: %WikitextEx.AST.Template{name: "template", args: [positional: "arg"]}, children: []}]
 
   """
-  @spec parse(String.t()) :: 
-    {:ok, [AST.t()], String.t(), map(), {non_neg_integer(), non_neg_integer()}, non_neg_integer()} |
-    {:error, String.t(), String.t(), map(), {non_neg_integer(), non_neg_integer()}, non_neg_integer()}
+  @spec parse(String.t()) ::
+          {:ok, [AST.t()], String.t(), map(), {non_neg_integer(), non_neg_integer()},
+           non_neg_integer()}
+          | {:error, String.t(), String.t(), map(), {non_neg_integer(), non_neg_integer()},
+             non_neg_integer()}
   def parse(wikitext) when is_binary(wikitext) do
     Parser.parse(wikitext)
   end
@@ -85,9 +90,11 @@ defmodule WikitextEx do
     Enum.flat_map(ast_nodes, &do_find_links/1)
   end
 
-  defp do_find_links(%AST{type: type} = node) when type in [:link, :category, :file, :interlang_link] do
+  defp do_find_links(%AST{type: type} = node)
+       when type in [:link, :category, :file, :interlang_link] do
     [node]
   end
+
   defp do_find_links(%AST{children: children}), do: find_links(children)
   defp do_find_links(_), do: []
 
@@ -115,9 +122,11 @@ defmodule WikitextEx do
   defp do_extract_text(%AST{type: :text, value: %AST.Text{content: content}}) do
     content
   end
+
   defp do_extract_text(%AST{children: children}) do
     extract_text(children)
   end
+
   defp do_extract_text(_), do: ""
 
   @doc """

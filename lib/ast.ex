@@ -60,6 +60,28 @@ defmodule WikitextEx.AST do
 
   @doc """
   Extract text content from AST children, useful for headers and other containers.
+
+  ## Examples
+
+      iex> children = [
+      ...>   %WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: "Hello"}, children: []},
+      ...>   %WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: " World"}, children: []}
+      ...> ]
+      iex> WikitextEx.AST.text_content(children)
+      "Hello World"
+
+      iex> node = %WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: "Single text"}, children: []}
+      iex> WikitextEx.AST.text_content(node)
+      "Single text"
+
+      iex> bold_node = %WikitextEx.AST{
+      ...>   type: :bold,
+      ...>   value: nil,
+      ...>   children: [%WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: "Bold text"}, children: []}]
+      ...> }
+      iex> WikitextEx.AST.text_content(bold_node)
+      "Bold text"
+
   """
   def text_content(children) when is_list(children) do
     children

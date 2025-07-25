@@ -17,8 +17,8 @@ defmodule WikitextEx.Parser do
       iex> {:ok, ast, _, _, _, _} = WikitextEx.Parser.parse("'''Bold''' text")
       iex> ast
       [
-        %WikitextEx.AST{type: :bold, children: [%WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: "Bold"}}]},
-        %WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: " text"}}
+        %WikitextEx.AST{type: :bold, value: nil, children: [%WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: "Bold"}, children: []}]},
+        %WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: " text"}, children: []}
       ]
 
   ## Parser Architecture
