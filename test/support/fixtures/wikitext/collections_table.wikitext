@@ -1,0 +1,84 @@
+sibilities were transferred to Company USA.<ref>[https://example.com/articles/business/view/7925/company-usa-charge Company USA In Charge | Business News]</ref>
+
+==First Publisher collections==
+===Original Series===
+{| style="margin:auto; text-align: center; background:#{{red color}}; border:3px solid #{{blue color}}; {{roundy|10px}}"
+|-
+! style="background-color:#EEE; width:50px; {{roundytl|5px}}" | Collection no.
+! style="background-color:#EEE; width:50px" | Symbol
+! style="background-color:#EEE; width:150px" | Logo of Collection
+! style="background-color:#EEE; width:200px" | Name of Collection
+! style="background-color:#EEE; width:200px" | Type of Collection
+! style="background-color:#EEE; width:180px" | No. of items
+! style="background-color:#EEE; width:150px" {{roundytr|5px}}" | Release date
+! style="background-color:#EEE; width:100px;" | {{tt|Code|Collection code}}
+|- style="background:#FFF"
+| 1
+| —
+| —
+| {{Collection|Starter Set}}
+| Main Series Collection
+| 102
+| January 9, 2020
+| SS
+|- style="background:#FFF"
+| 2
+| [[File:SetSymbolGarden.png|40px]]
+| [[File:Garden Logo.png|100px]]
+| {{Collection|Garden Series}}
+| Main Series Collection
+| 64
+| June 16, 2020
+| GS
+|- style="background:#FFF"
+| 3
+| [[File:SetSymbolClassic.png|40px]]
+| [[File:Classic Logo.png|90px]]
+| {{Collection|Classic Set}}
+| Main Series Collection
+| 62
+| October 10, 2020
+| CS
+|- style="background:#FFF"
+| 4
+| [[File:SetSymbolStarter Set 2.png|40px]]
+| [[File:Starter Set 2 Logo.png|90px]]
+| {{Collection|Starter Set 2}}
+| Main Series Collection
+| 130
+| February 24, 2021
+| S2
+|- style="background:#FFF"
+| 5
+| [[File:SetSymbolSpecial Edition.png|40px]]
+| [[File:Special Edition Logo.png|120px]]
+| {{Collection|Special Edition}}
+| Main Series Collection
+| 82<br>1 Bonus item
+| April 24, 2021
+| SE
+|- style="background:#FFF"
+| 6
+| [[File:SetSymbolDeluxe Series.png|40px]]
+| [[File:Deluxe Series Logo.png|100px]]
+| {{Collection|Deluxe Series}}
+| Main Series Collection
+| 132
+| August 14, 2021
+| DS
+|- style="background:#FFF"
+| 7
+| [[File:SetSymbolDeluxe Premium.png|40px]]
+| [[File:Deluxe Premium Logo.png|100px]]
+| {{Collection|Deluxe Premium}}
+| Main Series Collection
+| 132
+| October 16, 2021
+| DP
+|}
+
+===Modern Series===
+{| style="margin:auto; text-align: center; background:#{{silver color}}; border:3px solid #{{gold color}}; {{roundy|10px}}"
+|-
+! style="background-color:#EEE; width:50px; {{roundytl
+

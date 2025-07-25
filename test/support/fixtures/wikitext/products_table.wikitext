@@ -1,0 +1,38 @@
+{| style="margin:auto; text-align: center; background:#{{red color}}; border:3px solid #{{blue color}}; {{roundy|10px}}"
+|-
+! style="background-color:#EEE; width:50px; {{roundytl|5px}}" | Product ID
+! style="background-color:#EEE; width:50px" | Symbol
+! style="background-color:#EEE; width:150px" | Product Logo
+! style="background-color:#EEE; width:200px" | Product Name
+! style="background-color:#EEE; width:200px" | Product Type
+! style="background-color:#EEE; width:180px" | No. of items
+! style="background-color:#EEE; width:150px" {{roundytr|5px}}" | Release date
+! style="background-color:#EEE; width:100px;" | {{tt|Code|Product code}}
+|- style="background:#FFF"
+| 1
+| —
+| —
+| {{Product|Starter Collection}}
+| Main Product Line
+| 102
+| January 9, 2020
+| SC
+|- style="background:#FFF"
+| 2
+| [[File:ProductSymbolGarden.png|40px]]
+| [[File:Garden Logo.png|100px]]
+| {{Product|Garden Series}}
+| Main Product Line
+| 64
+| June 16, 2020
+| GS
+|- style="background:#FFF"
+| 3
+| [[File:ProductSymbolClassic.png|40px]]
+| [[File:Classic Logo.png|100px]]
+| {{Product|Classic Collection}}
+| Main Product Line
+| 62
+| October 10, 2020
+| CC
+|}
