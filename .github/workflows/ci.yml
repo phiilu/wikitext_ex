@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-26.04
+    env:
+      MIX_ENV: test
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Elixir
+        id: beam
+        uses: erlef/setup-beam@v1.24.1
+        with:
+          version-file: mise.toml
+          version-type: strict
+      - name: Cache deps and build
+        uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: mix-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: mix-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-
+      - run: mix deps.get
+      - run: mix compile --warnings-as-errors
+        if: always()
+      - run: mix format --check-formatted
+        if: always()
+      - run: mix credo --strict
+        if: always()
+      - run: mix hex.audit
+        if: always()
+      - run: mix deps.audit.check
+        if: always()
+      - run: mix deps.unlock --check-unused
+        if: always()
+      - run: mix test --warnings-as-errors
+        if: always()
+
+  # Dialyxir is a :dev dependency.
+  dialyzer:
+    runs-on: ubuntu-26.04
+    env:
+      MIX_ENV: dev
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Elixir
+        id: beam
+        uses: erlef/setup-beam@v1.24.1
+        with:
+          version-file: mise.toml
+          version-type: strict
+      - name: Cache deps, build and PLTs
+        uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+            priv/plts
+          key: dialyzer-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: dialyzer-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-
+      - run: mix deps.get
+      - run: mix dialyzer
+
+  # The oldest Elixir mix.exs accepts, on its newest OTP.
+  minimum:
+    runs-on: ubuntu-26.04
+    env:
+      MIX_ENV: test
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1.24.1
+        with:
+          elixir-version: "1.18"
+          otp-version: "27"
+      - run: mix deps.get
+      - run: mix test
