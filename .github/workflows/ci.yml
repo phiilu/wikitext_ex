@@ -101,18 +101,26 @@ jobs:
       - run: mise run reference:edge-cases
       - name: Check the references are unchanged
         run: git diff --exit-code test/fixtures
-      # A pull request fuzzes only when what parses, the reference or this
-      # workflow changed: with a fixed seed nothing else can change the result.
+      # A pull request, or a push to main, fuzzes only when what parses, the
+      # reference or this workflow changed since its base: with a fixed seed
+      # nothing else can change the result. The weekly and manual runs always
+      # fuzz, and so does a push whose base is gone, as after a force push.
       - name: Check whether the parser or the reference changed
         id: changes
         shell: bash
         env:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
         run: |
-          if [ "$EVENT" != pull_request ] ||
-            git diff --name-only "origin/$BASE...HEAD" |
-              grep -Eq '^(lib/|scripts/|test/fixtures/|mise\.toml$|\.github/workflows/ci\.yml$)'; then
+          case "$EVENT" in
+            pull_request) range="origin/$BASE...HEAD" ;;
+            push) range="$BEFORE..HEAD" ;;
+            *) range="" ;;
+          esac
+          if [ -z "$range" ] || ! changed=$(git diff --name-only "$range"); then
+            echo "fuzz=true" >> "$GITHUB_OUTPUT"
+          elif grep -Eq '^(lib/|scripts/|test/fixtures/|mise\.toml$|\.github/workflows/ci\.yml$)' <<< "$changed"; then
             echo "fuzz=true" >> "$GITHUB_OUTPUT"
           fi
       # The weekly run fuzzes a new, larger batch, its seed the run's ID in
