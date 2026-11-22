@@ -21,3 +21,6 @@ wikitext_ex-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Dialyzer's PLTs, built by `mix dialyzer`.
+/priv/plts/

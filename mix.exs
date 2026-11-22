@@ -2,15 +2,22 @@ defmodule WikitextEx.MixProject do
   use Mix.Project
 
   @version "0.1.1"
+
+  # Read by both auditors: `mix hex.audit` through :hex below, `mix deps.audit`
+  # through the deps.audit.check alias.
+  @ignored_advisories []
   @source_url "https://github.com/phiilu/wikitext_ex"
 
   def project do
     [
       app: :wikitext_ex,
       version: @version,
-      elixir: "~> 1.15",
+      elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      aliases: aliases(),
+      hex: [ignore_advisories: @ignored_advisories],
+      dialyzer: [plt_add_apps: [:mix, :ex_unit], plt_local_path: "priv/plts"],
       description: description(),
       package: package(),
       docs: docs(),
@@ -30,7 +37,23 @@ defmodule WikitextEx.MixProject do
   defp deps do
     [
       {:nimble_parsec, "~> 1.4"},
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false}
+      {:credo, "== 1.7.19", only: [:dev, :test], runtime: false},
+      {:credo_unnecessary_reduce, "== 0.4.0", only: [:dev, :test], runtime: false},
+      {:dialyxir, "== 1.4.9", only: [:dev], runtime: false},
+      {:ex_dna, "== 1.5.4", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
+      {:ex_slop, "== 0.4.5", only: [:dev, :test], runtime: false},
+      {:jump_credo_checks, "== 0.7.1", only: [:dev, :test], runtime: false},
+      {:mix_audit, "== 2.1.5", only: [:dev, :test], runtime: false},
+      {:quokka, "== 2.13.1", only: [:dev, :test], runtime: false}
+    ]
+  end
+
+  defp aliases do
+    [
+      "format-lint": ["format", "compile --warnings-as-errors", "credo --strict"],
+      "deps.audit.check":
+        "deps.audit --ignore-advisory-ids #{Enum.join(@ignored_advisories, ",")}"
     ]
   end
 
