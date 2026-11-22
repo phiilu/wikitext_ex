@@ -7,6 +7,14 @@ defmodule WikitextEx.ConformanceTest do
   The suite's inputs are mwparserfromhell's (MIT); the expected trees were
   generated from mwparserfromhell 0.7.2, its C tokenizer, with
   `scripts/mwph_reference.py`. The edge cases are in `test/fixtures/edge_cases`.
+
+  Where mwparserfromhell's C and Python tokenizers disagree, the C one is the
+  reference. Its C tokenizer stops reading at `NUL`, where WikitextEx reads on,
+  so no reference input holds one.
+
+  A difference from the reference becomes an edge case: add a `.wikitext` file
+  to `test/fixtures/edge_cases`, regenerate `edge_cases.json` with the script's
+  `files` mode, and see it fail before fixing it.
   """
   use ExUnit.Case, async: true
 

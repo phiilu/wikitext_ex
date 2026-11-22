@@ -11,7 +11,8 @@ defmodule WikitextEx.Tokenizer.State do
   # not a template. The construct then fails: its frame is dropped, its route
   # remembered, and the caller, the nearest `attempt/2`, reads the opening as
   # text instead. A remembered route fails again at once when pushed, which
-  # keeps unterminated markup from being read over and over.
+  # keeps unterminated markup from being read over and over. The throws never
+  # leave this module: `attempt/2` and `attempt_or_fail_from/3` catch them.
 
   import Bitwise
 

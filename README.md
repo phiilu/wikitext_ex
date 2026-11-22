@@ -115,7 +115,7 @@ can check.
 
 ## Correctness
 
-The parser follows the grammar of
+The parser follows the grammar and the tokenizer design of
 [mwparserfromhell](https://github.com/earwig/mwparserfromhell), the reference
 source-level wikitext parser. The test suite checks the trees of its 573 test
 inputs against its output, plus every input written back. Differential fuzzing
