@@ -3,23 +3,20 @@
 [![Hex.pm](https://img.shields.io/hexpm/v/wikitext_ex.svg)](https://hex.pm/packages/wikitext_ex)
 [![Documentation](https://img.shields.io/badge/docs-hexdocs-blue.svg)](https://hexdocs.pm/wikitext_ex)
 
-A MediaWiki wikitext parser for Elixir that converts wikitext markup into structured AST nodes. WikitextEx supports templates, links, formatting, tables, and other wikitext elements commonly found in MediaWiki content.
+A MediaWiki wikitext parser in pure Elixir. It turns wikitext into a tree of
+plain tuples, and writes a tree back to wikitext exactly as it was.
 
-> **⚠️ Current Status: Beta** - WikitextEx successfully parses many common wikitext patterns but has known limitations with certain edge cases. See [Known Limitations](#known-limitations) for details.
-
-## Features
-
-- **Complete Wikitext Support**: Parse headers, links, templates, formatting (bold/italic), lists, tables, and more
-- **Structured AST**: Clean, typed AST nodes for easy manipulation and analysis
-- **Template Parsing**: Full support for MediaWiki template syntax with named and positional arguments
-- **HTML Tag Support**: Parse HTML tags, comments, and special tags like `<ref>` and `<nowiki>`
-- **Table Parsing**: Complete MediaWiki table syntax support with headers and data cells
-- **Robust Formatting**: Handles complex bold/italic combinations and nested formatting
-- **Link Types**: Support for internal links, categories, files, and interlanguage links
+- **Every input parses.** Wikitext has no syntax errors: markup that doesn't
+  complete a construct, like an unclosed `{{` or a `[[` across a line break, is
+  text, as it is on the wiki.
+- **Lossless.** `WikitextEx.to_wikitext/1` gives back the input byte for byte,
+  so you can change a tree and save it without disturbing the rest of the page.
+- **Tuples, not structs.** Nodes are `{type, meta, children}`, the shape of
+  Elixir's own AST, so they pattern-match and walk like it.
+- **Source-level.** Templates stay templates: the parser reads what the page
+  says, it doesn't render it the way MediaWiki would.
 
 ## Installation
-
-Add `wikitext_ex` to your list of dependencies in `mix.exs`:
 
 <!-- x-release-please-start-version -->
 ```elixir
@@ -33,221 +30,111 @@ end
 
 ## Usage
 
-### Basic Parsing
-
 ```elixir
-# Parse simple wikitext
-{:ok, ast, _, _, _, _} = WikitextEx.Parser.parse("'''Bold text''' and ''italic text''")
-
-# The result is a list of AST nodes
+iex> WikitextEx.parse!("== History ==\n{{Infobox country|capital={{lang|de|Wien}}}}\n* [[Congress of Vienna]]")
 [
-  %WikitextEx.AST{type: :bold, children: [%WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: "Bold text"}}]},
-  %WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: " and "}},
-  %WikitextEx.AST{type: :italic, children: [%WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: "italic text"}}]}
+  {:heading, %{level: 2}, [" History "]},
+  "\n",
+  {:template, %{name: "Infobox country", name_padding: {"", ""}},
+   [
+     {:param, %{name: "capital", named: true, name_padding: {"", ""}},
+      [
+        {:template, %{name: "lang", name_padding: {"", ""}},
+         [
+           {:param, %{name: "1", named: false, name_padding: {"", ""}}, ["de"]},
+           {:param, %{name: "2", named: false, name_padding: {"", ""}}, ["Wien"]}
+         ]}
+      ]}
+   ]},
+  "\n",
+  {:list_item, %{marker: "*"},
+   [" ", {:link, %{target: "Congress of Vienna", target_padding: {"", ""}, pipe: false}, []}]}
 ]
 ```
 
-### Templates
+`WikitextEx.parse/2` returns `{:ok, nodes}`, or `{:error, :invalid_utf8}` for
+input that isn't UTF-8; `WikitextEx.parse!/2` raises instead.
+
+### Walking the tree
+
+`WikitextEx.AST` has `prewalk`, `postwalk`, `traverse` and `filter` over a
+tree, and `text/1` and `attributes/1` for the most common questions:
 
 ```elixir
-# Parse templates with arguments
-{:ok, ast, _, _, _, _} = WikitextEx.Parser.parse("{{template|arg1|key=value}}")
+nodes = WikitextEx.parse!("{{Infobox country|capital={{lang|de|Wien}}}} ''[[Wolfgang Amadeus Mozart|Mozart]]'' &amp; more")
 
-# Results in template AST node
-%WikitextEx.AST{
-  type: :template,
-  value: %WikitextEx.AST.Template{
-    name: "template",
-    args: [
-      {:positional, "arg1"},
-      {:named, %{"key" => "value"}}
-    ]
-  }
-}
+WikitextEx.AST.filter(nodes, &match?({:template, _, _}, &1))
+|> Enum.map(fn {:template, meta, _params} -> meta.name end)
+#=> ["Infobox country", "lang"]
+
+WikitextEx.AST.text(nodes)
+#=> " Mozart & more"
 ```
 
-### Links and Categories
+`Macro.prewalk/3` and the like work on the tree as well.
+
+### Changing a page
+
+Rewrite the nodes you care about and write the tree back. Everything else comes
+out as it went in:
 
 ```elixir
-# Parse various link types
-{:ok, ast, _, _, _, _} = WikitextEx.Parser.parse("[[Article]] [[Category:Example]] [[File:image.jpg|thumb]]")
-
-# Results in different AST node types:
-# - :link for regular internal links
-# - :category for category links
-# - :file for file/media links
+"Servus ''Wien'' <!-- keep me -->"
+|> WikitextEx.parse!()
+|> WikitextEx.AST.prewalk(fn
+  {:italic, _meta, children} -> {:bold, %{}, children}
+  node -> node
+end)
+|> WikitextEx.to_wikitext()
+#=> "Servus '''Wien''' <!-- keep me -->"
 ```
 
-### Headers
+## Nodes
 
-```elixir
-# Parse headers
-{:ok, ast, _, _, _, _} = WikitextEx.Parser.parse("== Section Header ==")
+Text is a binary; every other node is `{type, meta, children}`:
 
-%WikitextEx.AST{
-  type: :header,
-  value: %WikitextEx.AST.Header{level: 2},
-  children: [%WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: "Section Header"}}]
-}
-```
+| Wikitext | Type | Children |
+| --- | --- | --- |
+| `{{name\|a\|key=b}}` | `:template` | its `:param`s |
+| `{{{name\|default}}}` | `:argument` | the default |
+| `[[target\|text]]` | `:link` | the text |
+| `[url title]`, a bare URL | `:external_link` | the title |
+| `== title ==` | `:heading` | the title |
+| `''…''`, `'''…'''` | `:italic`, `:bold` | the contents |
+| `*`, `#`, `;`, `:` | `:list_item` | the rest of the line |
+| `----` | `:hr` | — |
+| `{\| … \|}`, `\|-`, `\|`, `!` | `:table`, `:table_row`, `:table_cell` | rows and cells |
+| `<tag>…</tag>` | `:html_tag` | the contents |
+| `&amp;`, `&#38;` | `:entity` | — |
+| `<!-- … -->` | `:comment` | — |
 
-### Tables
+The meta of each node is documented in `WikitextEx.AST`. Links are not split
+into categories, files and interlanguage links: whether `[[Category:X]]` is a
+category depends on the wiki's namespaces, so it's a `:link` whose target you
+can check.
 
-```elixir
-wikitext = """
-{|
-! Header 1 !! Header 2
-|-
-| Cell 1 || Cell 2
-|}
-"""
+## Correctness
 
-{:ok, ast, _, _, _, _} = WikitextEx.Parser.parse(wikitext)
-# Results in table AST with rows and cells
-```
-
-## AST Structure
-
-WikitextEx produces a structured AST where each node follows this pattern:
-
-```elixir
-%WikitextEx.AST{
-  type: atom(),           # The type of element (:text, :template, :link, etc.)
-  value: struct() | nil,  # Type-specific data (e.g., %AST.Text{content: "..."})
-  children: [%AST{}]      # Nested AST nodes
-}
-```
-
-### Supported AST Node Types
-
-- `:text` - Plain text content
-- `:header` - Headers (=, ==, ===, etc.)
-- `:template` - Template invocations ({{template|args}})
-- `:link` - Internal wiki links ([[Page]])
-- `:category` - Category links ([[Category:Name]])
-- `:file` - File/media links ([[File:image.jpg]])
-- `:interlang_link` - Interlanguage links ([[de:Page]])
-- `:bold` - Bold formatting ('''text''')
-- `:italic` - Italic formatting (''text'')
-- `:list_item` - List items (\* or #)
-- `:table` - Tables ({| ... |})
-- `:table_row` - Table rows
-- `:table_cell` - Table cells (header or data)
-- `:html_tag` - HTML tags (<span>, <div>, etc.)
-- `:ref` - Reference tags (<ref>)
-- `:comment` - HTML comments (<!-- -->)
-- `:nowiki` - Nowiki sections (<nowiki>)
-
-## Advanced Usage
-
-### Working with AST
-
-```elixir
-# Extract text content from headers or other containers
-WikitextEx.AST.text_content(ast_node.children)
-
-# Navigate the AST tree
-defmodule WikitextWalker do
-  def find_templates(ast_nodes) do
-    Enum.flat_map(ast_nodes, fn
-      %WikitextEx.AST{type: :template} = node -> [node]
-      %WikitextEx.AST{children: children} -> find_templates(children)
-      _ -> []
-    end)
-  end
-end
-```
-
-### Custom Processing
-
-```elixir
-defmodule WikitextProcessor do
-  def extract_links(wikitext) do
-    case WikitextEx.Parser.parse(wikitext) do
-      {:ok, ast, _, _, _, _} ->
-        ast
-        |> find_links()
-        |> Enum.map(& &1.value.target)
-
-      {:error, _} ->
-        []
-    end
-  end
-
-  defp find_links(ast_nodes) do
-    Enum.flat_map(ast_nodes, fn
-      %WikitextEx.AST{type: :link} = node -> [node]
-      %WikitextEx.AST{children: children} -> find_links(children)
-      _ -> []
-    end)
-  end
-end
-```
+The parser follows the grammar of
+[mwparserfromhell](https://github.com/earwig/mwparserfromhell), the reference
+source-level wikitext parser. The test suite checks the trees of its 573 test
+inputs against its output, plus every input written back. Differential fuzzing
+against it, over tens of thousands of generated inputs, finds no differences.
 
 ## Development
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/wikitext_ex.git
-cd wikitext_ex
-
-# Install dependencies
+mise install          # the Elixir and OTP versions CI uses, and the git hooks
 mix deps.get
-
-# Run tests
+mix format-lint       # format, compile without warnings, credo --strict
 mix test
-
-# Generate documentation
-mix docs
+mix dialyzer
 ```
 
-## Known Limitations
-
-WikitextEx works well for typical wiki content, but has some known limitations:
-
-### Parser Edge Cases
-
-- **Complex whitespace handling**: Some complex whitespace patterns may not parse correctly
-- **Deeply nested structures**: Very deeply nested content may cause parsing issues
-- **Advanced MediaWiki syntax**: Some advanced or rarely-used MediaWiki features are not yet supported
-- **Large content blocks**: Performance may degrade with extremely large wikitext files
-
-### Parsing Behavior
-
-- The parser may return partial results with unparsed content in the `rest` field for complex edge cases
-- Most common wikitext patterns parse successfully
-
-### Recommendations
-
-- **Test with your content**: Always test WikitextEx with your specific wikitext before production use
-- **Handle partial parsing**: Check the `rest` field in parse results for unparsed content
-- **Report issues**: Please report parsing failures with examples to help improve the parser
-
-## Testing
-
-WikitextEx includes a comprehensive test suite with 58 tests covering various wikitext patterns and edge cases. Run the tests with:
-
-```bash
-mix test
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Write tests for your changes
-4. Ensure all tests pass (`mix test`)
-5. Commit your changes (`git commit -am 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+`scripts/mwph_reference.py` generates reference trees with mwparserfromhell,
+for the conformance suite or for your own pages; see `test/corpus_test.exs`.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](https://github.com/phiilu/wikitext_ex/blob/main/LICENSE) file for details.
-
-## Acknowledgments
-
-- Built with [NimbleParsec](https://github.com/dashbitco/nimble_parsec) for robust parsing
-- Inspired by MediaWiki's wikitext specification
-- Designed for use with Wikipedia and other MediaWiki-based wikis
-
+MIT; see [LICENSE](https://github.com/phiilu/wikitext_ex/blob/main/LICENSE). The test inputs in `test/fixtures/mwparserfromhell`
+come from mwparserfromhell's test suite, under its MIT license in that directory.
