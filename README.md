@@ -123,16 +123,27 @@ against it, over tens of thousands of generated inputs, finds no differences.
 
 ## Development
 
+[mise](https://mise.jdx.dev) installs the toolchain CI uses: Elixir, OTP,
+Python and uv for the reference trees, and the git hooks' tools.
+
 ```bash
-mise install          # the Elixir and OTP versions CI uses, and the git hooks
-mix deps.get
+git clone https://github.com/phiilu/wikitext_ex && cd wikitext_ex
+mise trust            # allow the repository's mise.toml
+mise run setup        # toolchain, dependencies, git hooks, a build and the PLTs
+```
+
+Then:
+
+```bash
 mix format-lint       # format, compile without warnings, credo --strict
 mix test
 mix dialyzer
+mix bench             # Benchee; `mix bench path/to/pages` adds your own pages
+mise tasks            # the reference, corpus and fuzz tasks
 ```
 
-`scripts/mwph_reference.py` generates reference trees with mwparserfromhell,
-for the conformance suite or for your own pages; see `test/corpus_test.exs`.
+The reference trees come from mwparserfromhell, at the version
+`scripts/mwph_reference.py` pins, and CI regenerates them on every change.
 
 ## License
 

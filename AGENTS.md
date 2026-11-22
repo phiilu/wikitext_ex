@@ -10,7 +10,7 @@ This file points at where things are written down; the code, its docs and its co
 - **The pipeline**: start at `WikitextEx.parse/2`.
 - **The tokenizer**: the header comments of `WikitextEx.Tokenizer` and `WikitextEx.Tokenizer.State` explain backtracking, contexts and the position contract. Read both before changing either.
 - **Conformance**: the behaviour reference is mwparserfromhell's C tokenizer. `ConformanceTest`'s moduledoc says how references are made and what a newly found difference becomes; `CorpusTest`'s how to check real pages and fuzz batches, which every tokenizer change runs. Settle a behaviour question by running the reference on the input, never by reading a tokenizer's source alone.
-- **Checks**: the aliases in `mix.exs`, `lefthook.yml` and the CI workflows. A rule tooling can check becomes a Credo check, loaded through `.credo.exs`.
+- **Checks and tasks**: the aliases in `mix.exs`, `mise tasks`, `lefthook.yml` and the CI workflows. A rule tooling can check becomes a Credo check, loaded through `.credo.exs`.
 - **Releases**: release-please owns the version and the changelog (its config names the files). Commits are Conventional Commits; a breaking change's `BREAKING CHANGE:` footer is its release note.
 
 ## The rules tooling cannot check
