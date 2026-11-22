@@ -1,0 +1,1 @@
+^(feat|fix|perf|chore|refactor|revert|test|docs|style|ci|build)(\(.+\))?!?: .+

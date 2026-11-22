@@ -1,0 +1,76 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:best-practices", ":semanticCommits", ":semanticCommitTypeAll(chore)"],
+  "description": "Groups hold what has to move together or fails together; anything that could fail on its own gets its own pull request, so one red update does not hold back the others.",
+  "labels": ["dependencies"],
+  "osvVulnerabilityAlerts": true,
+  "schedule": ["* 0-5 * * 1"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true
+  },
+  "packageRules": [
+    {
+      "description": "CI is the safety net: every update merges once it is green, majors included.",
+      "matchUpdateTypes": ["major", "minor", "patch", "pin", "pinDigest", "digest"],
+      "automerge": true
+    },
+    {
+      "description": "release-please only runs on main after a merge, so no check covers its update before it.",
+      "matchPackageNames": ["googleapis/release-please-action"],
+      "automerge": false
+    },
+    {
+      "description": "Give a new release three days to be flagged as malicious before it is proposed.",
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "minimumReleaseAge": "3 days",
+      "internalChecksFilter": "strict"
+    },
+    {
+      "description": "A runtime dependency's update reaches users, so it cuts a release.",
+      "matchManagers": ["mix"],
+      "matchDepTypes": ["prod"],
+      "semanticCommitType": "fix"
+    },
+    {
+      "description": "Elixir is built for an OTP release, so the two move together.",
+      "matchManagers": ["mise"],
+      "matchDepNames": ["elixir", "erlang"],
+      "groupName": "Elixir and OTP"
+    },
+    {
+      "description": "Credo's plugins are built against its API, so they move with it.",
+      "matchManagers": ["mix"],
+      "matchPackageNames": ["credo", "credo_unnecessary_reduce", "jump_credo_checks", "ex_slop", "ex_dna"],
+      "groupName": "Credo and its plugins"
+    },
+    {
+      "description": "The actions' small updates share the CI run that checks them.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "description": "The git hooks' tools are checked by one CI job, so their small updates share it.",
+      "matchManagers": ["mise"],
+      "matchDepNames": ["lefthook", "gitleaks", "actionlint"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "git hook tools"
+    },
+    {
+      "description": "The reference's update is test tooling; CI regenerates every reference with it. It stays apart from Python and uv, as a difference in its trees is a parser question.",
+      "matchManagers": ["pep723"],
+      "semanticCommitType": "test"
+    },
+    {
+      "description": "Python and uv only run the reference script, so their small updates share a pull request.",
+      "matchManagers": ["mise"],
+      "matchDepNames": ["python", "uv"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Python and uv"
+    }
+  ],
+  "pep723": {
+    "managerFilePatterns": ["/^scripts/mwph_reference\\.py$/"]
+  }
+}

@@ -1,0 +1,25 @@
+name: PR title
+
+# Pull requests are squash-merged, so the title is the commit release-please
+# reads: it has to be a Conventional Commit.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  title:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check the title is a Conventional Commit
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if ! printf '%s\n' "$TITLE" | grep -Eq -f .github/conventional-commit.pattern; then
+            echo "::error::The title must be a Conventional Commit, for example: feat: describe the change"
+            exit 1
+          fi

@@ -21,3 +21,12 @@ wikitext_ex-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Dialyzer's PLTs, built by `mix dialyzer`.
+/priv/plts/
+
+# Python bytecode from scripts/
+__pycache__/
+
+# Claude Code settings local to one machine.
+/.claude/settings.local.json

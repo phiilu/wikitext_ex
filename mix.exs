@@ -2,15 +2,23 @@ defmodule WikitextEx.MixProject do
   use Mix.Project
 
   @version "0.1.1"
+
+  # Read by both auditors: `mix hex.audit` through :hex below, `mix deps.audit`
+  # through the deps.audit.check alias.
+  @ignored_advisories []
   @source_url "https://github.com/phiilu/wikitext_ex"
 
   def project do
     [
       app: :wikitext_ex,
       version: @version,
-      elixir: "~> 1.15",
+      elixir: "~> 1.18",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      aliases: aliases(),
+      hex: [ignore_advisories: @ignored_advisories],
+      dialyzer: [plt_add_apps: [:mix, :ex_unit], plt_local_path: "priv/plts"],
       description: description(),
       package: package(),
       docs: docs(),
@@ -26,19 +34,38 @@ defmodule WikitextEx.MixProject do
     ]
   end
 
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_env), do: ["lib"]
+
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:nimble_parsec, "~> 1.4"},
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false}
+      {:benchee, "== 1.5.1", only: :dev},
+      {:credo, "== 1.7.19", only: [:dev, :test], runtime: false},
+      {:credo_unnecessary_reduce, "== 0.4.0", only: [:dev, :test], runtime: false},
+      {:dialyxir, "== 1.4.9", only: [:dev], runtime: false},
+      {:ex_dna, "== 1.5.4", only: [:dev, :test], runtime: false},
+      {:ex_doc, "== 0.38.2", only: :dev, runtime: false},
+      {:ex_slop, "== 0.4.5", only: [:dev, :test], runtime: false},
+      {:jump_credo_checks, "== 0.7.1", only: [:dev, :test], runtime: false},
+      {:mix_audit, "== 2.1.5", only: [:dev, :test], runtime: false},
+      {:quokka, "== 2.13.1", only: [:dev, :test], runtime: false}
+    ]
+  end
+
+  defp aliases do
+    [
+      "format-lint": ["format", "compile --warnings-as-errors", "credo --strict"],
+      bench: "run bench/parse.exs",
+      "deps.audit.check":
+        "deps.audit --ignore-advisory-ids #{Enum.join(@ignored_advisories, ",")}"
     ]
   end
 
   defp description do
     """
-    A MediaWiki wikitext parser for Elixir that converts wikitext markup 
-    into structured AST nodes, supporting templates, links, formatting, tables, 
-    and other wikitext elements commonly found in MediaWiki content.
+    A MediaWiki wikitext parser in pure Elixir: wikitext to a tree of tuples
+    and back, losslessly.
     """
   end
 
@@ -61,7 +88,8 @@ defmodule WikitextEx.MixProject do
       main: "WikitextEx",
       source_ref: "v#{@version}",
       source_url: @source_url,
-      extras: ["README.md", "CHANGELOG.md"]
+      extras: ["README.md", "CHANGELOG.md"],
+      skip_undefined_reference_warnings_on: ["CHANGELOG.md"]
     ]
   end
 end
