@@ -2,6 +2,8 @@
 
 [![Hex.pm](https://img.shields.io/hexpm/v/wikitext_ex.svg)](https://hex.pm/packages/wikitext_ex)
 [![Documentation](https://img.shields.io/badge/docs-hexdocs-blue.svg)](https://hexdocs.pm/wikitext_ex)
+[![CI](https://img.shields.io/github/actions/workflow/status/phiilu/wikitext_ex/ci.yml?branch=main&label=CI)](https://github.com/phiilu/wikitext_ex/actions/workflows/ci.yml?query=branch%3Amain)
+[![License](https://img.shields.io/hexpm/l/wikitext_ex.svg)](https://github.com/phiilu/wikitext_ex/blob/main/LICENSE)
 
 A MediaWiki wikitext parser in pure Elixir. It turns wikitext into a tree of
 plain tuples, and writes a tree back to wikitext exactly as it was.
