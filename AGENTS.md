@@ -11,7 +11,7 @@ This file points at where things are written down; the code, its docs and its co
 - **The tokenizer**: the header comments of `WikitextEx.Tokenizer` and `WikitextEx.Tokenizer.State` explain backtracking, contexts and the position contract. Read both before changing either.
 - **Conformance**: the behaviour reference is mwparserfromhell's C tokenizer. `ConformanceTest`'s moduledoc says how references are made and what a newly found difference becomes; `CorpusTest`'s how to check real pages and fuzz batches, which every tokenizer change runs. Settle a behaviour question by running the reference on the input, never by reading a tokenizer's source alone.
 - **Checks and tasks**: the aliases in `mix.exs`, `mise tasks`, `lefthook.yml` and the CI workflows. A rule tooling can check becomes a Credo check, loaded through `.credo.exs`.
-- **Releases**: release-please owns the version and the changelog (its config names the files). Pull requests are squash-merged, so a pull request's title is the Conventional Commit release-please reads; a breaking change's release note is a `BREAKING CHANGE:` footer in a `BEGIN_COMMIT_OVERRIDE` block of its body.
+- **Releases**: release-please owns the version and the changelog (its config names the files). Every commit on main is a Conventional Commit release-please reads: a squash-merged pull request's title, or a commit the owner pushes directly. A breaking change's release note is its `BREAKING CHANGE:` footer, for a pull request in a `BEGIN_COMMIT_OVERRIDE` block of its body.
 
 ## The rules tooling cannot check
 
