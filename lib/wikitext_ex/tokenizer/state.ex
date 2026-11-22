@@ -15,8 +15,7 @@ defmodule WikitextEx.Tokenizer.State do
   # leave this module: `attempt/2` and `attempt_or_fail_from/3` catch them.
 
   import Bitwise
-
-  alias WikitextEx.Text
+  import WikitextEx.Text, only: [space_char?: 1]
 
   # How deep constructs may nest before markup is read as text.
   @max_depth 100
@@ -47,7 +46,11 @@ defmodule WikitextEx.Tokenizer.State do
 
   @doc "The `count` characters from the position on, `:end` past the text."
   @spec ahead(t(), pos_integer()) :: [char() | :end]
-  def ahead(%{text: text, pos: pos}, count), do: chars_from(text, pos, count)
+  def ahead(state, count) do
+    state
+    |> rest()
+    |> take_chars(count)
+  end
 
   @doc "The character `distance` characters ahead of the position, or `:end`."
   @spec peek(t(), non_neg_integer()) :: char() | :end
@@ -66,11 +69,16 @@ defmodule WikitextEx.Tokenizer.State do
   def forward(state, count \\ 1)
   def forward(state, 0), do: state
 
-  def forward(%{text: text, pos: pos} = state, count) do
-    case char_at(text, pos) do
-      :end -> state
-      char -> forward(%{state | pos: pos + char_size(char)}, count - 1)
-    end
+  def forward(%{pos: pos} = state, count) do
+    %{state | pos: pos + chars_size(rest(state), count)}
+  end
+
+  @doc "Emits `text`, which starts at the position, and moves past it."
+  @spec take_text(t(), String.t()) :: t()
+  def take_text(%{pos: pos} = state, text) do
+    state
+    |> emit_text(text)
+    |> seek(pos + byte_size(text))
   end
 
   @doc "Moves the position to `pos`, a byte offset saved earlier."
@@ -90,8 +98,8 @@ defmodule WikitextEx.Tokenizer.State do
 
   @doc "Whether `char` is whitespace."
   @spec space?(char() | :start | :end) :: boolean()
-  def space?(char) when is_integer(char), do: Text.space?(<<char::utf8>>)
-  def space?(_edge), do: false
+  def space?(char) when space_char?(char), do: true
+  def space?(_char), do: false
 
   # --- Frames -------------------------------------------------------------------
 
@@ -144,7 +152,7 @@ defmodule WikitextEx.Tokenizer.State do
   @spec push(t(), non_neg_integer()) :: t()
   def push(state, context \\ 0) do
     route = {state.pos, context}
-    if MapSet.member?(state.failed_routes, route), do: throw({:route_failed, context, state})
+    if failed_route?(state, context), do: throw({:route_failed, context, state})
 
     %{
       state
@@ -157,16 +165,19 @@ defmodule WikitextEx.Tokenizer.State do
   @spec failed_route?(t(), non_neg_integer()) :: boolean()
   def failed_route?(state, context), do: MapSet.member?(state.failed_routes, {state.pos, context})
 
-  @doc """
-  Pops the current frame, returning its tokens. With `keep_context: true` the
-  frame below takes over its context.
-  """
-  @spec pop(t(), keyword()) :: {[term()], t()}
-  def pop(state, opts \\ []) do
+  @doc "Pops the current frame, returning its tokens."
+  @spec pop(t()) :: {[term()], t()}
+  def pop(state) do
     %{frames: [frame | frames]} = flushed = flush_text(state)
-    popped = %{flushed | frames: frames, depth: flushed.depth - 1}
-    below = if opts[:keep_context], do: put_context(popped, frame.context), else: popped
-    {Enum.reverse(frame.tokens), below}
+    {Enum.reverse(frame.tokens), %{flushed | frames: frames, depth: flushed.depth - 1}}
+  end
+
+  @doc "Pops the current frame like `pop/1`; the frame below takes over its context."
+  @spec pop_keeping_context(t()) :: {[term()], t()}
+  def pop_keeping_context(state) do
+    context = context(state)
+    {tokens, below} = pop(state)
+    {tokens, put_context(below, context)}
   end
 
   @doc "Drops the current frame."
@@ -174,6 +185,21 @@ defmodule WikitextEx.Tokenizer.State do
   def drop(state) do
     {_tokens, below} = pop(state)
     below
+  end
+
+  @doc "Pops the current frame into the one below: its tokens join that frame's."
+  @spec merge_down(t()) :: t()
+  def merge_down(state) do
+    {tokens, below} = pop(state)
+    emit_all(below, tokens)
+  end
+
+  @doc "Drops the current frame, remembering its route as failed."
+  @spec abandon(t()) :: t()
+  def abandon(state) do
+    state
+    |> remember_failure()
+    |> drop()
   end
 
   @doc "Remembers the current frame's route as failed."
@@ -186,12 +212,7 @@ defmodule WikitextEx.Tokenizer.State do
   @doc "Fails the current frame's construct: drops the frame, remembering its route."
   @spec fail(t()) :: no_return()
   def fail(state) do
-    failed =
-      state
-      |> remember_failure()
-      |> drop()
-
-    throw({:route_failed, context(state), failed})
+    throw({:route_failed, context(state), abandon(state)})
   end
 
   @doc "Fails the construct being read before it has a frame of its own."
@@ -238,6 +259,7 @@ defmodule WikitextEx.Tokenizer.State do
   end
 
   @spec emit_text(t(), String.t()) :: t()
+  def emit_text(state, ""), do: state
   def emit_text(state, text), do: update_frame(state, &%{&1 | text: [text | &1.text]})
 
   @spec emit_char(t(), char()) :: t()
@@ -274,14 +296,15 @@ defmodule WikitextEx.Tokenizer.State do
     end
   end
 
-  defp chars_from(_text, _pos, 0), do: []
+  defp take_chars(_text, 0), do: []
+  defp take_chars(<<char::utf8, rest::binary>>, count), do: [char | take_chars(rest, count - 1)]
+  defp take_chars(<<>>, count), do: List.duplicate(:end, count)
 
-  defp chars_from(text, pos, count) do
-    case char_at(text, pos) do
-      :end -> List.duplicate(:end, count)
-      char -> [char | chars_from(text, pos + char_size(char), count - 1)]
-    end
-  end
+  # The byte size of the first `count` characters of `text`, or of all of it.
+  defp chars_size(<<char::utf8, rest::binary>>, count) when count > 0,
+    do: char_size(char) + chars_size(rest, count - 1)
+
+  defp chars_size(_text, _count), do: 0
 
   defp char_before(_text, 0, _distance), do: :start
 

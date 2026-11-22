@@ -50,54 +50,26 @@ defmodule WikitextEx.Builder do
   end
 
   defp node({:argument_open, _attrs}, tokens) do
-    {name_nodes, rest} = nodes_until(tokens, is?([:argument_separator, :argument_close]))
+    {name_nodes, default, rest} = split_at_separator(tokens, :argument_separator, :argument_close)
     {name, padding} = name_and_padding(name_nodes)
-
-    case rest do
-      [{:argument_separator, _attrs} | default_tokens] ->
-        {default, [{:argument_close, _attrs} | rest]} =
-          nodes_until(default_tokens, is?(:argument_close))
-
-        {{:argument, %{name: name, name_padding: padding, default: true}, default}, rest}
-
-      [{:argument_close, _attrs} | rest] ->
-        {{:argument, %{name: name, name_padding: padding, default: false}, []}, rest}
-    end
+    meta = %{name: name, name_padding: padding, default: default != nil}
+    {{:argument, meta, part_nodes(default)}, rest}
   end
 
   defp node({:wikilink_open, _attrs}, tokens) do
-    {target_nodes, rest} = nodes_until(tokens, is?([:wikilink_separator, :wikilink_close]))
+    {target_nodes, text, rest} = split_at_separator(tokens, :wikilink_separator, :wikilink_close)
     {target, padding} = name_and_padding(target_nodes)
 
-    case rest do
-      [{:wikilink_separator, _attrs} | text_tokens] ->
-        {text, [{:wikilink_close, _attrs} | rest]} =
-          nodes_until(text_tokens, is?(:wikilink_close))
-
-        {{:link, %{target: target, target_padding: padding, pipe: true}, text}, rest}
-
-      [{:wikilink_close, _attrs} | rest] ->
-        {{:link, %{target: target, target_padding: padding, pipe: false}, []}, rest}
-    end
+    {{:link, %{target: target, target_padding: padding, pipe: text != nil}, part_nodes(text)},
+     rest}
   end
 
   defp node({:external_link_open, %{brackets: brackets}}, tokens) do
-    {url_nodes, rest} =
-      nodes_until(tokens, is?([:external_link_separator, :external_link_close]))
+    {url_nodes, title, rest} =
+      split_at_separator(tokens, :external_link_separator, :external_link_close)
 
-    url = Writer.to_wikitext(url_nodes)
-
-    case rest do
-      [{:external_link_separator, attrs} | title_tokens] ->
-        {title, [{:external_link_close, _attrs} | rest]} =
-          nodes_until(title_tokens, is?(:external_link_close))
-
-        separator = if attrs[:suppress_space], do: "", else: " "
-        {{:external_link, %{url: url, brackets: brackets, separator: separator}, title}, rest}
-
-      [{:external_link_close, _attrs} | rest] ->
-        {{:external_link, %{url: url, brackets: brackets, separator: nil}, []}, rest}
-    end
+    meta = %{url: Writer.to_wikitext(url_nodes), brackets: brackets, separator: separator(title)}
+    {{:external_link, meta, part_nodes(title)}, rest}
   end
 
   defp node({:html_entity_start, _attrs}, tokens) do
@@ -116,7 +88,7 @@ defmodule WikitextEx.Builder do
   end
 
   defp node({:tag_open_open, open}, tokens) do
-    {tag, rest} = tag(tokens, %{name: [], attributes: [], contents: nil})
+    {tag, rest} = tag(tokens, %{name: [], attributes: []})
     {tag_node(open, tag), rest}
   end
 
@@ -161,7 +133,7 @@ defmodule WikitextEx.Builder do
   end
 
   defp tag([{:tag_close_open, attrs} | tokens], tag) do
-    {contents, [{:tag_open_close, close_attrs} | closing_tokens]} =
+    {contents, [{:tag_open_close, _attrs} | closing_tokens]} =
       nodes_until(tokens, is?(:tag_open_close))
 
     {closing_tag, [{:tag_close_close, _attrs} | rest]} =
@@ -174,7 +146,6 @@ defmodule WikitextEx.Builder do
         padding: attrs[:padding] || "",
         separator: attrs[:wiki_markup],
         contents: contents,
-        closing_markup: close_attrs[:wiki_markup],
         closing_tag: Writer.to_wikitext(closing_tag)
       })
 
@@ -189,7 +160,6 @@ defmodule WikitextEx.Builder do
         padding: attrs[:padding] || "",
         separator: nil,
         contents: [],
-        closing_markup: nil,
         closing_tag: nil
       })
 
@@ -288,13 +258,37 @@ defmodule WikitextEx.Builder do
     {:html_tag, meta, tag.contents}
   end
 
+  # The nodes up to `separator` or `close`, and after a `separator` those up to
+  # `close`: `{head, part, rest}`, `part` the separator's attributes and nodes,
+  # or `nil` without a separator.
+  defp split_at_separator(tokens, separator, close) do
+    {head, rest} = nodes_until(tokens, is?([separator, close]))
+
+    case rest do
+      [{^separator, attrs} | part_tokens] ->
+        {part, [{^close, _attrs} | after_close]} = nodes_until(part_tokens, is?(close))
+        {head, {attrs, part}, after_close}
+
+      [{^close, _attrs} | after_close] ->
+        {head, nil, after_close}
+    end
+  end
+
+  defp part_nodes(nil), do: []
+  defp part_nodes({_attrs, nodes}), do: nodes
+
+  # An external link's title follows a space, or starts right at the
+  # character that ended the URL.
+  defp separator(nil), do: nil
+  defp separator({attrs, _title}), do: if(attrs[:suppress_space], do: "", else: " ")
+
   # A name without its surrounding whitespace, and that whitespace.
   defp name_and_padding(nodes) do
-    source = Writer.to_wikitext(nodes)
-    rest = Text.trim_leading(source)
-    name = Text.trim_trailing(rest)
-    leading = binary_part(source, 0, byte_size(source) - byte_size(rest))
-    trailing = binary_part(rest, byte_size(name), byte_size(rest) - byte_size(name))
+    {leading, name, trailing} =
+      nodes
+      |> Writer.to_wikitext()
+      |> Text.split_padding()
+
     {name, {leading, trailing}}
   end
 

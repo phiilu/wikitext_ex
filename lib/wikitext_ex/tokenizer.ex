@@ -150,14 +150,10 @@ defmodule WikitextEx.Tokenizer do
 
   # Reads with `context` until its construct ends, returning `{result, state}`:
   # the construct's tokens, or for a heading `{title_tokens, level}`.
-  defp parse(state, context, opts \\ []) do
-    if Keyword.get(opts, :push, true) do
-      state
-      |> State.push(context)
-      |> read()
-    else
-      read(state)
-    end
+  defp parse(state, context) do
+    state
+    |> State.push(context)
+    |> read()
   end
 
   defp read(state) do
@@ -172,15 +168,29 @@ defmodule WikitextEx.Tokenizer do
     end
   end
 
-  # Where some characters end the construct, text is read one character at a
-  # time, each checked.
+  # Where some characters end the construct, each character is checked. Once
+  # the first is read, the rest of a run of text needs no check unless the
+  # context still has one pending (see `safety/3`).
   defp read_unsafe(state, char) when char in @markers or char == :end, do: read_char(state, char)
 
   defp read_unsafe(state, char) do
-    state
-    |> State.emit_char(char)
-    |> State.forward()
-    |> read()
+    first_read =
+      state
+      |> State.emit_char(char)
+      |> State.forward()
+
+    if run_safe?(State.context(first_read)),
+      do:
+        first_read
+        |> take_plain_text()
+        |> read(),
+      else: read(first_read)
+  end
+
+  defp run_safe?(context) do
+    not has(context, @fail_next ||| @fail_on_lbrace ||| @fail_on_rbrace) and
+      (not has(context, @template_name) or
+         (has(context, @has_text) and not has(context, @fail_on_text)))
   end
 
   defp read_char(state, :end), do: finish(state)
@@ -193,13 +203,21 @@ defmodule WikitextEx.Tokenizer do
   end
 
   defp read_char(state, _char) do
-    text = State.text_run(state, &(&1 in @markers))
-
     state
-    |> State.emit_text(text)
-    |> State.seek(state.pos + byte_size(text))
+    |> take_plain_text()
     |> read()
   end
+
+  # Takes the text up to the next character that may be markup.
+  defp take_plain_text(state) do
+    text = State.rest(state)
+    State.take_text(state, binary_part(text, 0, plain_length(text, 0)))
+  end
+
+  defp plain_length(<<byte, rest::binary>>, length) when byte not in @markers,
+    do: plain_length(rest, length + 1)
+
+  defp plain_length(_text, length), do: length
 
   # The text ends inside the current construct.
   defp finish(state) do
@@ -319,7 +337,7 @@ defmodule WikitextEx.Tokenizer do
     do: template_param(state)
 
   defp markup(state, [?=, next | _ahead], last, context) when has(context, @template_param_key) do
-    if not state.heading? and line_start(last) and next == ?=,
+    if not in_heading(state) and line_start(last) and next == ?=,
       do: heading(state),
       else: template_param_value(state)
   end
@@ -401,20 +419,20 @@ defmodule WikitextEx.Tokenizer do
     if char == ?\n, do: State.remove_flags(state, @table_cell_line), else: state
   end
 
-  defp markup(state, [?{, ?| | _ahead] = ahead, last, context) do
+  defp markup(state, [?{, ?| | _ahead] = ahead, _last, context) do
     cond do
-      not leading_whitespace?(state) -> table_markup(state, ahead, last, context)
+      not leading_whitespace?(state) -> table_markup(state, ahead, context)
       nestable(state) -> table(state)
       true -> text_char(state)
     end
   end
 
-  defp markup(state, ahead, last, context), do: table_markup(state, ahead, last, context)
+  defp markup(state, ahead, _last, context), do: table_markup(state, ahead, context)
 
-  defp table_markup(state, ahead, _last, context) when has(context, @table_open),
+  defp table_markup(state, ahead, context) when has(context, @table_open),
     do: table_cell_markup(state, ahead, context)
 
-  defp table_markup(state, _ahead, _last, _context), do: text_char(state)
+  defp table_markup(state, _ahead, _context), do: text_char(state)
 
   defp done({result, state}), do: {:done, result, state}
 
@@ -440,9 +458,7 @@ defmodule WikitextEx.Tokenizer do
   # innermost first: `{{{{{x}}}}}` is an argument in a template.
   defp template_or_argument(state) do
     braces =
-      state
-      |> State.rest()
-      |> leading_count(?{)
+      repeats(state, ?{)
 
     state =
       state
@@ -473,10 +489,8 @@ defmodule WikitextEx.Tokenizer do
   end
 
   defp finish_braces(state) do
-    {tokens, below} = State.pop(state)
-
-    below
-    |> State.emit_all(tokens)
+    state
+    |> State.merge_down()
     |> clear_fail_next()
   end
 
@@ -498,21 +512,20 @@ defmodule WikitextEx.Tokenizer do
 
   defp template_body(state, has_content) do
     context = if has_content, do: @template_name ||| @has_template, else: @template_name
+    brace_body(state, context, {:template_open, :template_close})
+  end
+
+  defp argument_body(state),
+    do: brace_body(state, @argument_name, {:argument_open, :argument_close})
+
+  # Reads a template's or argument's body, failing the braces around it with it.
+  defp brace_body(state, context, {open, close}) do
     {tokens, read} = State.attempt_or_fail_from(state, state.pos, &parse(&1, context))
 
     read
-    |> State.emit_first({:template_open, %{}})
+    |> State.emit_first({open, %{}})
     |> State.emit_all(tokens)
-    |> State.emit({:template_close, %{}})
-  end
-
-  defp argument_body(state) do
-    {tokens, read} = State.attempt_or_fail_from(state, state.pos, &parse(&1, @argument_name))
-
-    read
-    |> State.emit_first({:argument_open, %{}})
-    |> State.emit_all(tokens)
-    |> State.emit({:argument_close, %{}})
+    |> State.emit({close, %{}})
   end
 
   defp template_param(state) do
@@ -544,10 +557,7 @@ defmodule WikitextEx.Tokenizer do
   end
 
   # A parameter's key is read in a frame of its own.
-  defp emit_param_key(state) do
-    {key, below} = State.pop(state)
-    State.emit_all(below, key)
-  end
+  defp emit_param_key(state), do: State.merge_down(state)
 
   defp template_param_value(state) do
     state
@@ -614,8 +624,8 @@ defmodule WikitextEx.Tokenizer do
   defp url_in_double_brackets(state, start, link) do
     if has(State.context(state), @ext_link_title) do
       state
-      |> State.seek(start + 2)
-      |> State.emit_text("[[")
+      |> State.seek(start)
+      |> State.take_text("[[")
     else
       state
       |> State.emit_text("[")
@@ -633,8 +643,8 @@ defmodule WikitextEx.Tokenizer do
 
       {:failed, _context, failed} ->
         failed
-        |> State.seek(start + 2)
-        |> State.emit_text("[[")
+        |> State.seek(start)
+        |> State.take_text("[[")
     end
   end
 
@@ -671,7 +681,7 @@ defmodule WikitextEx.Tokenizer do
       {:ok, {{link, trailing}, linked}} ->
         linked
         |> emit_external_link(brackets, link)
-        |> emit_nonempty_text(trailing)
+        |> State.emit_text(trailing)
 
       {:failed, _context, failed} ->
         failed
@@ -716,15 +726,8 @@ defmodule WikitextEx.Tokenizer do
   end
 
   defp named_scheme(state) do
-    scheme =
-      state
-      |> State.rest()
-      |> scheme_prefix()
-
-    at_colon =
-      state
-      |> State.emit_text(scheme)
-      |> State.seek(state.pos + byte_size(scheme))
+    scheme = State.text_run(state, &(&1 not in @uri_scheme_chars))
+    at_colon = State.take_text(state, scheme)
 
     if State.current(at_colon) != ?:, do: State.fail(at_colon)
 
@@ -746,11 +749,6 @@ defmodule WikitextEx.Tokenizer do
     |> State.emit_text("//")
     |> State.forward(2)
   end
-
-  defp scheme_prefix(<<char, rest::binary>>) when char in @uri_scheme_chars,
-    do: <<char>> <> scheme_prefix(rest)
-
-  defp scheme_prefix(_text), do: ""
 
   # A free link's scheme was read as text before its `:`; it is the word that
   # ends the text read since the last token.
@@ -832,7 +830,7 @@ defmodule WikitextEx.Tokenizer do
 
     if nested_markup?(state, char, next) do
       state
-      |> emit_nonempty_text(link.tail)
+      |> State.emit_text(link.tail)
       |> nested_markup(char)
       |> url(%{link | tail: ""})
     else
@@ -859,7 +857,7 @@ defmodule WikitextEx.Tokenizer do
 
       char == ?( and not link.parens ->
         state
-        |> emit_nonempty_text(link.tail)
+        |> State.emit_text(link.tail)
         |> text_char()
         |> url(%{link | tail: "", parens: true})
 
@@ -870,7 +868,7 @@ defmodule WikitextEx.Tokenizer do
 
       true ->
         state
-        |> emit_nonempty_text(link.tail)
+        |> State.emit_text(link.tail)
         |> text_char()
         |> url(%{link | tail: ""})
     end
@@ -915,7 +913,7 @@ defmodule WikitextEx.Tokenizer do
       |> link_separator(char)
       |> State.toggle_flags(@ext_link_uri)
       |> State.add_flags(@ext_link_title)
-      |> parse(0, push: false)
+      |> read()
 
     {{title, ""}, below}
   end
@@ -928,9 +926,6 @@ defmodule WikitextEx.Tokenizer do
 
   defp link_separator(state, _char),
     do: State.emit(state, {:external_link_separator, %{suppress_space: true}})
-
-  defp emit_nonempty_text(state, ""), do: state
-  defp emit_nonempty_text(state, text), do: State.emit_text(state, text)
 
   defp url_end?(_state, char, _next) when char in [:end, ?\n, ?[, ?], ?<, ?>, ?", ?\s], do: true
   defp url_end?(_state, ?', ?'), do: true
@@ -958,9 +953,7 @@ defmodule WikitextEx.Tokenizer do
     start = state.pos
 
     equals =
-      state
-      |> State.rest()
-      |> leading_count(?=)
+      repeats(state, ?=)
 
     context = @heading_level_1 <<< min(equals - 1, 5)
     in_heading = State.forward(%{state | heading?: true}, equals)
@@ -988,6 +981,13 @@ defmodule WikitextEx.Tokenizer do
   defp emit_repeated(state, text, count),
     do: State.emit_text(state, String.duplicate(text, count))
 
+  # How many times `char` repeats from the position on.
+  defp repeats(state, char) do
+    state
+    |> State.rest()
+    |> leading_count(char)
+  end
+
   defp leading_count(<<char, rest::binary>>, char), do: 1 + leading_count(rest, char)
   defp leading_count(_text, _char), do: 0
 
@@ -996,37 +996,31 @@ defmodule WikitextEx.Tokenizer do
     start = state.pos
 
     equals =
-      state
-      |> State.rest()
-      |> leading_count(?=)
+      repeats(state, ?=)
 
-    level = closing_level(State.context(state), equals)
+    closing = closing_level(State.context(state), equals)
     after_equals = State.forward(state, equals)
 
-    case State.attempt(after_equals, &parse(&1, State.context(&1))) do
-      {:ok, {{title, later_level}, read}} ->
-        {tokens, below} =
-          read
-          |> emit_repeated("=", equals)
-          |> State.emit_all(title)
-          |> State.pop()
+    {read, level} =
+      case State.attempt(after_equals, &parse(&1, State.context(&1))) do
+        {:ok, {{title, later_level}, later}} ->
+          {later
+           |> emit_repeated("=", equals)
+           |> State.emit_all(title), later_level}
 
-        {:done, {tokens, later_level}, below}
+        {:failed, _context, failed} ->
+          {failed
+           |> emit_repeated("=", equals - closing)
+           |> State.seek(start + equals), closing}
+      end
 
-      {:failed, _context, failed} ->
-        {tokens, below} =
-          failed
-          |> emit_repeated("=", equals - level)
-          |> State.seek(start + equals)
-          |> State.pop()
-
-        {:done, {tokens, level}, below}
-    end
+    {tokens, below} = State.pop(read)
+    {:done, {tokens, level}, below}
   end
 
   defp closing_level(context, equals), do: min(heading_level(context), min(equals, 6))
 
-  defp heading_level(context), do: highest_bit(div(context, @heading_level_1)) + 1
+  defp heading_level(context), do: highest_bit(div(band(context, @heading), @heading_level_1)) + 1
 
   defp highest_bit(flags) when flags <= 1, do: 0
   defp highest_bit(flags), do: 1 + highest_bit(flags >>> 1)
@@ -1039,8 +1033,7 @@ defmodule WikitextEx.Tokenizer do
 
     case State.attempt(state, &entity_body/1) do
       {:ok, read} ->
-        {tokens, below} = State.pop(read)
-        State.emit_all(below, tokens)
+        State.merge_down(read)
 
       {:failed, _context, failed} ->
         failed
@@ -1147,19 +1140,15 @@ defmodule WikitextEx.Tokenizer do
       :nomatch ->
         opened
         |> State.drop()
-        |> State.seek(start + 4)
-        |> State.emit_text("<!--")
+        |> State.seek(start)
+        |> State.take_text("<!--")
 
       {content_length, _match_length} ->
-        {tokens, below} =
-          opened
-          |> emit_nonempty_text(binary_part(rest, 0, content_length))
-          |> State.emit_first({:comment_start, %{}})
-          |> State.emit({:comment_end, %{}})
-          |> State.pop()
-
-        below
-        |> State.emit_all(tokens)
+        opened
+        |> State.emit_text(binary_part(rest, 0, content_length))
+        |> State.emit_first({:comment_start, %{}})
+        |> State.emit({:comment_end, %{}})
+        |> State.merge_down()
         |> State.seek(opened.pos + content_length + 3)
         |> clear_fail_next()
     end
@@ -1194,8 +1183,8 @@ defmodule WikitextEx.Tokenizer do
 
       {:failed, _context, failed} ->
         failed
-        |> State.seek(start + 2)
-        |> State.emit_text("</")
+        |> State.seek(start)
+        |> State.take_text("</")
     end
   end
 
@@ -1205,12 +1194,15 @@ defmodule WikitextEx.Tokenizer do
   end
 
   defp tag_name_ahead(state) do
-    state
-    |> State.rest()
-    |> String.to_charlist()
-    |> Enum.take_while(&(not State.space?(&1) and not marker(&1)))
-    |> List.to_string()
+    text = State.rest(state)
+    binary_part(text, 0, byte_size(text) - byte_size(after_tag_name(text)))
   end
+
+  defp after_tag_name(<<char::utf8, rest::binary>> = text) do
+    if marker(char) or State.space?(char), do: text, else: after_tag_name(rest)
+  end
+
+  defp after_tag_name(<<>>), do: <<>>
 
   defp new_tag(context \\ @tag_name) do
     %{
@@ -1267,7 +1259,7 @@ defmodule WikitextEx.Tokenizer do
 
     cond do
       void?(name) -> close_void_tag(state)
-      parsed_contents?(name) -> parse(state, 0, push: false)
+      parsed_contents?(name) -> read(state)
       true -> unparsed_contents(state)
     end
   end
@@ -1295,8 +1287,7 @@ defmodule WikitextEx.Tokenizer do
   # opening quote, as text.
   defp reread_from_quote(state, tag) do
     state
-    |> State.remember_failure()
-    |> State.drop()
+    |> State.abandon()
     |> State.seek(tag.quote_pos)
   end
 
@@ -1485,25 +1476,21 @@ defmodule WikitextEx.Tokenizer do
   defp emit_attribute(state, tag) do
     pads = Map.take(tag, [:pad_first, :pad_before_eq, :pad_after_eq])
 
-    {attribute, below} =
+    emitted =
       state
       |> close_quoted_value(tag)
       |> State.emit_first({:tag_attr_start, pads})
-      |> State.pop()
+      |> State.merge_down()
 
-    {State.emit_all(below, attribute),
-     %{tag | pad_first: "", pad_before_eq: "", pad_after_eq: ""}}
+    {emitted, %{tag | pad_first: "", pad_before_eq: "", pad_after_eq: ""}}
   end
 
   # A quoted value is read in a frame of its own.
   defp close_quoted_value(state, tag) do
     if has(tag.context, @tag_quoted) do
-      {value, below} =
-        state
-        |> State.emit_first({:tag_attr_quote, %{char: tag.quote}})
-        |> State.pop()
-
-      State.emit_all(below, value)
+      state
+      |> State.emit_first({:tag_attr_quote, %{char: tag.quote}})
+      |> State.merge_down()
     else
       state
     end
@@ -1552,11 +1539,8 @@ defmodule WikitextEx.Tokenizer do
   end
 
   defp unparsed_contents(state, _ahead) do
-    text = State.text_run(state, &(&1 in [?<, ?&]))
-
     state
-    |> State.emit_text(text)
-    |> State.seek(state.pos + byte_size(text))
+    |> State.take_text(State.text_run(state, &(&1 in [?<, ?&])))
     |> unparsed_contents()
   end
 
@@ -1579,8 +1563,8 @@ defmodule WikitextEx.Tokenizer do
       |> State.pop()
     else
       at_end
-      |> State.seek(start + 2)
-      |> State.emit_text("</")
+      |> State.seek(start)
+      |> State.take_text("</")
       |> unparsed_contents()
     end
   end
@@ -1652,17 +1636,20 @@ defmodule WikitextEx.Tokenizer do
     |> State.emit({:tag_close_close, %{}})
   end
 
-  defp italics(state) do
+  # Italics with a bold inside left unclosed are read once more, the bold as
+  # text.
+  defp italics(state, context \\ @style_italics) do
     start = state.pos
 
-    case State.attempt(state, &parse(&1, @style_italics)) do
+    case State.attempt(state, &parse(&1, context)) do
       {:ok, {body, read}} ->
         style_tag(read, "i", "''", body)
 
-      {:failed, context, failed} when has(context, @style_pass_again) ->
+      {:failed, failed_context, failed}
+      when has(failed_context, @style_pass_again) and context == @style_italics ->
         failed
         |> State.seek(start)
-        |> italics_second_pass(start)
+        |> italics(@style_italics ||| @style_second_pass)
 
       {:failed, _context, failed} ->
         failed
@@ -1671,20 +1658,7 @@ defmodule WikitextEx.Tokenizer do
     end
   end
 
-  # Bold inside was unclosed: read again, leaving the bold as text.
-  defp italics_second_pass(state, start) do
-    case State.attempt(state, &parse(&1, @style_italics ||| @style_second_pass)) do
-      {:ok, {body, read}} ->
-        style_tag(read, "i", "''", body)
-
-      {:failed, _context, failed} ->
-        failed
-        |> State.seek(start)
-        |> State.emit_text("''")
-    end
-  end
-
-  # Returns `{s, done?}`: whether the enclosing italics are to end here.
+  # Returns `{state, done?}`: whether the enclosing italics are to end here.
   defp bold(state) do
     start = state.pos
 
@@ -1730,7 +1704,7 @@ defmodule WikitextEx.Tokenizer do
 
     case State.attempt(state, &parse(&1, @style_bold)) do
       {:ok, {bold_body, read}} ->
-        after_bold(read, bold_body)
+        after_first_style(read, {"b", "'''", bold_body}, {"i", "''", @style_italics})
 
       {:failed, _context, failed} ->
         failed
@@ -1739,25 +1713,10 @@ defmodule WikitextEx.Tokenizer do
     end
   end
 
-  defp after_bold(state, bold_body) do
-    bold_end = state.pos
-
-    case State.attempt(state, &parse(&1, @style_italics)) do
-      {:ok, {rest, read}} ->
-        nest_styles(read, {"b", "'''", bold_body}, rest, {"i", "''"})
-
-      {:failed, _context, failed} ->
-        failed
-        |> State.seek(bold_end)
-        |> State.emit_text("''")
-        |> style_tag("b", "'''", bold_body)
-    end
-  end
-
   defp italics_first(state, start) do
     case State.attempt(state, &parse(&1, @style_italics)) do
       {:ok, {italics_body, read}} ->
-        after_italics(read, italics_body)
+        after_first_style(read, {"i", "''", italics_body}, {"b", "'''", @style_bold})
 
       {:failed, _context, failed} ->
         failed
@@ -1766,18 +1725,20 @@ defmodule WikitextEx.Tokenizer do
     end
   end
 
-  defp after_italics(state, italics_body) do
-    italics_end = state.pos
+  # The style that closed first is read; the other either closes around it or
+  # is text.
+  defp after_first_style(state, {tag, markup, body} = first, {other_tag, other_markup, context}) do
+    first_end = state.pos
 
-    case State.attempt(state, &parse(&1, @style_bold)) do
+    case State.attempt(state, &parse(&1, context)) do
       {:ok, {rest, read}} ->
-        nest_styles(read, {"i", "''", italics_body}, rest, {"b", "'''"})
+        nest_styles(read, first, rest, {other_tag, other_markup})
 
       {:failed, _context, failed} ->
         failed
-        |> State.seek(italics_end)
-        |> State.emit_text("'''")
-        |> style_tag("i", "''", italics_body)
+        |> State.seek(first_end)
+        |> State.emit_text(other_markup)
+        |> style_tag(tag, markup, body)
     end
   end
 
@@ -1797,9 +1758,7 @@ defmodule WikitextEx.Tokenizer do
   # apostrophe and bold, more than five apostrophes and both.
   defp style(state) do
     ticks =
-      state
-      |> State.rest()
-      |> leading_count(?')
+      repeats(state, ?')
 
     {at_style, style_ticks} =
       state
@@ -1888,9 +1847,7 @@ defmodule WikitextEx.Tokenizer do
 
   defp horizontal_rule(state) do
     dashes =
-      state
-      |> State.rest()
-      |> leading_count(?-)
+      repeats(state, ?-)
 
     state
     |> State.emit({:tag_open_open, %{wiki_markup: String.duplicate("-", dashes)}})
@@ -1912,23 +1869,27 @@ defmodule WikitextEx.Tokenizer do
 
   # --- Tables -------------------------------------------------------------------
 
-  defp table_tag(state, markup, tag, style, padding, separator, contents, closing_markup) do
+  # Emits a table, row or cell from its markup, its tag, and `parts`: its style
+  # attributes, the padding and separator after them, and its contents.
+  defp table_tag(state, {markup, tag}, parts) do
     close_open =
-      if separator, do: %{wiki_markup: separator, padding: padding}, else: %{padding: padding}
+      if parts.separator,
+        do: %{wiki_markup: parts.separator, padding: parts.padding},
+        else: %{padding: parts.padding}
 
     state
     |> State.emit({:tag_open_open, %{wiki_markup: markup}})
     |> State.emit_text(tag)
-    |> State.emit_all(style || [])
+    |> State.emit_all(parts.style)
     |> State.emit({:tag_close_open, close_open})
-    |> State.emit_all(contents)
-    |> State.emit({:tag_open_close, %{wiki_markup: closing_markup}})
+    |> State.emit_all(parts.contents)
+    |> State.emit({:tag_open_close, %{}})
     |> State.emit_text(tag)
     |> State.emit({:tag_close_close, %{}})
   end
 
   # Reads attributes up to `end_char` in a frame of `context`, returning
-  # `{s, padding}` with the whitespace after them, `end_char` itself unread.
+  # `{state, padding}` with the whitespace after them, `end_char` itself unread.
   defp attributes_frame(state, context, end_char) do
     tag = new_tag(@tag_attr_ready)
 
@@ -1986,7 +1947,12 @@ defmodule WikitextEx.Tokenizer do
 
     case State.attempt(at_contents, &parse(&1, @table_open)) do
       {:ok, {contents, read}} ->
-        table_tag(read, "{|", "table", style, padding, nil, contents, "|}")
+        table_tag(read, {"{|", "table"}, %{
+          style: style,
+          padding: padding,
+          separator: nil,
+          contents: contents
+        })
 
       {:failed, _context, failed} ->
         failed
@@ -2001,8 +1967,7 @@ defmodule WikitextEx.Tokenizer do
       state
     else
       state
-      |> State.remember_failure()
-      |> State.drop()
+      |> State.abandon()
       |> unwind_to(route)
     end
   end
@@ -2080,7 +2045,7 @@ defmodule WikitextEx.Tokenizer do
       |> State.forward()
       |> parse(context)
 
-    table_tag(read, "|-", "tr", style, padding, nil, row, "")
+    table_tag(read, {"|-", "tr"}, %{style: style, padding: padding, separator: nil, contents: row})
   end
 
   # A cell, `|` or `!` and `||` or `!!` on the same line; `attributes |` may
@@ -2101,20 +2066,15 @@ defmodule WikitextEx.Tokenizer do
     read_context = State.context(read)
     restored = State.put_context(read, outer_context)
 
-    cell =
+    {cell_read, cell} =
       if has(read_context, @table_cell_style),
         do: styled_table_cell(restored, state.pos, cell_context, outer_context),
-        else: %{
-          s: restored,
-          contents: contents,
-          context: read_context,
-          style: nil,
-          padding: "",
-          separator: nil
-        }
+        else:
+          {restored,
+           %{contents: contents, context: read_context, style: [], padding: "", separator: nil}}
 
-    cell.s
-    |> table_tag(markup, tag, cell.style, cell.padding, cell.separator, cell.contents, "")
+    cell_read
+    |> table_tag({markup, tag}, cell)
     |> State.add_flags(band(cell.context, @table_th_line ||| @table_td_line))
   end
 
@@ -2131,20 +2091,20 @@ defmodule WikitextEx.Tokenizer do
       |> State.forward()
       |> parse(cell_context)
 
-    %{
-      s: State.put_context(read, outer_context),
-      contents: contents,
-      context: State.context(read),
-      style: style,
-      padding: padding,
-      separator: "|"
-    }
+    {State.put_context(read, outer_context),
+     %{
+       contents: contents,
+       context: State.context(read),
+       style: style,
+       padding: padding,
+       separator: "|"
+     }}
   end
 
   defp table_cell_end(state, style_ahead? \\ false) do
     state
     |> mark_cell_style(style_ahead?)
-    |> State.pop(keep_context: true)
+    |> State.pop_keeping_context()
     |> done()
   end
 

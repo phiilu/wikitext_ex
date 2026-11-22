@@ -59,8 +59,8 @@
              [
                order:
                  ~w(moduledoc behaviour use import require alias shortdoc module_attribute defstruct type typep opaque callback macrocallback optional_callbacks module public_fun public_macro callback_impl private_fun private_macro)a,
-               # A private guard has to come before the functions using it.
-               ignore: ~w(module private_guard)a
+               # A guard has to come before the functions using it.
+               ignore: ~w(module public_guard private_guard)a
              ]},
             {Credo.Check.Readability.TrailingBlankLine, []},
             {Credo.Check.Readability.TrailingWhiteSpace, []},
