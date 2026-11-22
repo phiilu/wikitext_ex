@@ -9,13 +9,13 @@ defmodule WikitextEx do
   Text is a plain binary. Every other node is a `{type, meta, children}` tuple,
   the shape of Elixir's own AST, so `Macro.prewalk/2` and friends walk it:
 
-      iex> {:ok, nodes} = WikitextEx.parse("{{Infobox person|name=Wolfgang Amadeus Mozart}} was a ''composer''")
+      iex> {:ok, nodes} = WikitextEx.parse("{{Speciesbox|name=Alpine marmot}} is a ''rodent''")
       iex> nodes
       [
-        {:template, %{name: "Infobox person", name_padding: {"", ""}},
-         [{:param, %{name: "name", name_padding: {"", ""}, named: true}, ["Wolfgang Amadeus Mozart"]}]},
-        " was a ",
-        {:italic, %{}, ["composer"]}
+        {:template, %{name: "Speciesbox", name_padding: {"", ""}},
+         [{:param, %{name: "name", name_padding: {"", ""}, named: true}, ["Alpine marmot"]}]},
+        " is a ",
+        {:italic, %{}, ["rodent"]}
       ]
 
   See `WikitextEx.AST` for every node type.
@@ -39,8 +39,8 @@ defmodule WikitextEx do
 
   ## Examples
 
-      iex> WikitextEx.parse("[[Vienna|the capital]]")
-      {:ok, [{:link, %{target: "Vienna", target_padding: {"", ""}, pipe: true}, ["the capital"]}]}
+      iex> WikitextEx.parse("[[Großglockner|the highest mountain]]")
+      {:ok, [{:link, %{target: "Großglockner", target_padding: {"", ""}, pipe: true}, ["the highest mountain"]}]}
 
       iex> WikitextEx.parse("{{unclosed")
       {:ok, ["{{unclosed"]}
@@ -76,8 +76,8 @@ defmodule WikitextEx do
   @doc """
   Writes nodes back to wikitext.
 
-      iex> "{{cite web |url=https://example.org |title=Congress of Vienna}}" |> WikitextEx.parse!() |> WikitextEx.to_wikitext()
-      "{{cite web |url=https://example.org |title=Congress of Vienna}}"
+      iex> "{{cite web |url=https://example.org |title=Hohe Tauern National Park}}" |> WikitextEx.parse!() |> WikitextEx.to_wikitext()
+      "{{cite web |url=https://example.org |title=Hohe Tauern National Park}}"
 
   """
   @spec to_wikitext(AST.t() | [AST.t()]) :: String.t()

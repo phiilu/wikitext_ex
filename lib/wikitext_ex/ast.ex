@@ -131,11 +131,11 @@ defmodule WikitextEx.AST do
   The nodes in `nodes`, at any depth, for which `fun` returns a truthy value,
   in document order.
 
-      iex> "{{Infobox country|capital={{lang|de|Wien}}}}"
+      iex> "{{Speciesbox|name={{lang|de|Gämse}}}}"
       ...> |> WikitextEx.parse!()
       ...> |> WikitextEx.AST.filter(&match?({:template, _, _}, &1))
       ...> |> Enum.map(fn {:template, meta, _params} -> meta.name end)
-      ["Infobox country", "lang"]
+      ["Speciesbox", "lang"]
 
   """
   @spec filter([t()] | t(), (t() -> as_boolean(term()))) :: [t()]
@@ -153,10 +153,10 @@ defmodule WikitextEx.AST do
   entities as their characters. Templates, arguments and comments have none;
   a link without text is its target, a bare URL itself.
 
-      iex> "'''[[Wolfgang Amadeus Mozart|Mozart]]''' &amp; {{cite book|title=Austrian State Treaty}}"
+      iex> "'''[[Rupicapra rupicapra|Chamois]]''' &amp; {{cite book|title=Fauna of the Alps}}"
       ...> |> WikitextEx.parse!()
       ...> |> WikitextEx.AST.text()
-      "Mozart & "
+      "Chamois & "
 
   """
   @spec text([t()] | t()) :: String.t()

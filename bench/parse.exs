@@ -2,28 +2,28 @@
 # directory of `.wikitext` files as one more input.
 
 section = """
-== The Congress of Vienna ==
-{{Infobox|name=Congress of Vienna|date=1814–1815|place=[[Vienna]]}}
-The '''Congress of Vienna''' met from September 1814 to June 1815, chaired by \
-[[Klemens von Metternich|Metternich]].<ref name="act">{{Citation|title=Final Act|year=1815}}</ref> \
-It redrew the map of Europe after the ''Napoleonic Wars''.
+== Hohe Tauern National Park ==
+{{Infobox protected area|name=Hohe Tauern National Park|location=[[Austria]]}}
+The '''Hohe Tauern National Park''' is the largest nature reserve in the Alps, \
+around [[Großglockner|Austria's highest mountain]].<ref name="park">{{Citation|title=Hohe Tauern National Park|publisher=Nationalpark Hohe Tauern}}</ref> \
+Its ''Alpine marmots'' whistle to warn each other.
 
-=== Delegations ===
+=== Animals ===
 {| class="wikitable" style="width: 100%"
-! Delegation !! Led by
+! Animal !! German name
 |-
-| [[Austrian Empire]] || Metternich
+| [[Alpine ibex]] || Steinbock
 |-
-| [[Kingdom of Prussia]] || Hardenberg
+| [[Chamois]] || Gämse
 |}
 
-* [[Austrian Empire]]
-** [[Habsburg monarchy]]
-*: the host
-# the opening ball
-# the [[Final Act]]
-<!-- dates follow the Gregorian calendar -->
-See [https://example.org/vienna the archive] &amp; [[Category:1815]]. <br/>
+* [[Alpine marmot]]
+** [[Marmota]]
+*: a rodent
+# the bearded vulture
+# the [[golden eagle]]
+<!-- the park spans Carinthia, Salzburg and Tyrol -->
+See [https://example.org/hohe-tauern the park] &amp; [[Category:Fauna of Austria]]. <br/>
 """
 
 suite =

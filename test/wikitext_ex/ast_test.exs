@@ -5,7 +5,7 @@ defmodule WikitextEx.ASTTest do
 
   doctest AST
 
-  @page "{{Infobox person|name={{lang|de|Wolfgang Amadeus Mozart}}}} and ''{{sfn|Solomon|1995}}''"
+  @page "{{Speciesbox|name={{lang|de|Alpenmurmeltier}}}} and ''{{sfn|Huber|2019}}''"
 
   describe "prewalk/3" do
     test "visits every node before its children, template parameters included" do
@@ -17,7 +17,7 @@ defmodule WikitextEx.ASTTest do
           node, names -> {node, names}
         end)
 
-      assert Enum.reverse(names) == ["Infobox person", "lang", "sfn"]
+      assert Enum.reverse(names) == ["Speciesbox", "lang", "sfn"]
     end
   end
 
@@ -55,7 +55,7 @@ defmodule WikitextEx.ASTTest do
         |> AST.filter(&match?({:template, _meta, _params}, &1))
 
       assert Enum.map(templates, fn {:template, %{name: name}, _params} -> name end) ==
-               ["Infobox person", "lang", "sfn"]
+               ["Speciesbox", "lang", "sfn"]
     end
   end
 
@@ -63,17 +63,17 @@ defmodule WikitextEx.ASTTest do
     test "is what a reader sees: link text, entities as characters, no templates or comments" do
       nodes =
         WikitextEx.parse!(
-          "'''[[Wolfgang Amadeus Mozart|Mozart]]''' &amp; {{cite book|title=Austrian State Treaty}}<!-- note --> [http://x.org site]"
+          "'''[[Rupicapra rupicapra|Chamois]]''' &amp; {{cite book|title=Fauna of the Alps}}<!-- note --> [http://x.org site]"
         )
 
-      assert AST.text(nodes) == "Mozart &  site"
+      assert AST.text(nodes) == "Chamois &  site"
     end
 
     test "is a link's target when it has no text" do
-      assert "[[Vienna]] [[Category:Austrian composers]]"
+      assert "[[Großglockner]] [[Category:Mountains of Austria]]"
              |> WikitextEx.parse!()
              |> AST.text() ==
-               "Vienna Category:Austrian composers"
+               "Großglockner Category:Mountains of Austria"
     end
   end
 

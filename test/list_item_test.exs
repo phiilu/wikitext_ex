@@ -2,10 +2,10 @@ defmodule WikitextEx.ListItemTest do
   use ExUnit.Case, async: true
 
   test "a list item holds the rest of its line" do
-    assert WikitextEx.parse!("* Vienna\n* Salzburg") == [
-             {:list_item, %{marker: "*"}, [" Vienna"]},
+    assert WikitextEx.parse!("* Chamois\n* Alpine ibex") == [
+             {:list_item, %{marker: "*"}, [" Chamois"]},
              "\n",
-             {:list_item, %{marker: "*"}, [" Salzburg"]}
+             {:list_item, %{marker: "*"}, [" Alpine ibex"]}
            ]
   end
 
@@ -16,11 +16,11 @@ defmodule WikitextEx.ListItemTest do
   end
 
   test "an item holds the markup on its line" do
-    assert WikitextEx.parse!("* [[Vienna]] {{flag|Austria}}\nnext") == [
+    assert WikitextEx.parse!("* [[Großglockner]] {{flag|Austria}}\nnext") == [
              {:list_item, %{marker: "*"},
               [
                 " ",
-                {:link, %{target: "Vienna", target_padding: {"", ""}, pipe: false}, []},
+                {:link, %{target: "Großglockner", target_padding: {"", ""}, pipe: false}, []},
                 " ",
                 {:template, %{name: "flag", name_padding: {"", ""}},
                  [{:param, %{name: "1", name_padding: {"", ""}, named: false}, ["Austria"]}]}
@@ -30,21 +30,21 @@ defmodule WikitextEx.ListItemTest do
   end
 
   test "a definition term and its definition are items of their own" do
-    assert WikitextEx.parse!(";Born: 1756") == [
-             {:list_item, %{marker: ";"}, ["Born"]},
-             {:list_item, %{marker: ":"}, [" 1756"]}
+    assert WikitextEx.parse!(";Height: 3798 m") == [
+             {:list_item, %{marker: ";"}, ["Height"]},
+             {:list_item, %{marker: ":"}, [" 3798 m"]}
            ]
   end
 
   test "an item inside a template parameter holds the rest of its line there" do
     assert [{:template, _meta, [{:param, _param_meta, value}]}] =
-             WikitextEx.parse!("{{Div col|\n* Vienna\n}}")
+             WikitextEx.parse!("{{Div col|\n* Chamois\n}}")
 
-    assert value == ["\n", {:list_item, %{marker: "*"}, [" Vienna"]}, "\n"]
+    assert value == ["\n", {:list_item, %{marker: "*"}, [" Chamois"]}, "\n"]
   end
 
   test "a list item writes back to its line" do
-    text = "* [[Vienna]]\n*# ''Ringstraße''\n;Born: 1756"
+    text = "* [[Alpine marmot]]\n*# ''Murmeltier''\n;Height: 3798 m"
 
     assert text
            |> WikitextEx.parse!()

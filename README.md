@@ -31,24 +31,24 @@ end
 ## Usage
 
 ```elixir
-iex> WikitextEx.parse!("== History ==\n{{Infobox country|capital={{lang|de|Wien}}}}\n* [[Congress of Vienna]]")
+iex> WikitextEx.parse!("== Fauna ==\n{{Speciesbox|name={{lang|de|Steinbock}}}}\n* [[Alpine ibex]]")
 [
-  {:heading, %{level: 2}, [" History "]},
+  {:heading, %{level: 2}, [" Fauna "]},
   "\n",
-  {:template, %{name: "Infobox country", name_padding: {"", ""}},
+  {:template, %{name: "Speciesbox", name_padding: {"", ""}},
    [
-     {:param, %{name: "capital", named: true, name_padding: {"", ""}},
+     {:param, %{name: "name", named: true, name_padding: {"", ""}},
       [
         {:template, %{name: "lang", name_padding: {"", ""}},
          [
            {:param, %{name: "1", named: false, name_padding: {"", ""}}, ["de"]},
-           {:param, %{name: "2", named: false, name_padding: {"", ""}}, ["Wien"]}
+           {:param, %{name: "2", named: false, name_padding: {"", ""}}, ["Steinbock"]}
          ]}
       ]}
    ]},
   "\n",
   {:list_item, %{marker: "*"},
-   [" ", {:link, %{target: "Congress of Vienna", target_padding: {"", ""}, pipe: false}, []}]}
+   [" ", {:link, %{target: "Alpine ibex", target_padding: {"", ""}, pipe: false}, []}]}
 ]
 ```
 
@@ -61,14 +61,14 @@ input that isn't UTF-8; `WikitextEx.parse!/2` raises instead.
 tree, and `text/1` and `attributes/1` for the most common questions:
 
 ```elixir
-nodes = WikitextEx.parse!("{{Infobox country|capital={{lang|de|Wien}}}} ''[[Wolfgang Amadeus Mozart|Mozart]]'' &amp; more")
+nodes = WikitextEx.parse!("{{Speciesbox|name={{lang|de|Gämse}}}} ''[[Rupicapra rupicapra|Chamois]]'' &amp; more")
 
 WikitextEx.AST.filter(nodes, &match?({:template, _, _}, &1))
 |> Enum.map(fn {:template, meta, _params} -> meta.name end)
-#=> ["Infobox country", "lang"]
+#=> ["Speciesbox", "lang"]
 
 WikitextEx.AST.text(nodes)
-#=> " Mozart & more"
+#=> " Chamois & more"
 ```
 
 `Macro.prewalk/3` and the like work on the tree as well.
@@ -79,14 +79,14 @@ Rewrite the nodes you care about and write the tree back. Everything else comes
 out as it went in:
 
 ```elixir
-"Servus ''Wien'' <!-- keep me -->"
+"Servus ''Großglockner'' <!-- keep me -->"
 |> WikitextEx.parse!()
 |> WikitextEx.AST.prewalk(fn
   {:italic, _meta, children} -> {:bold, %{}, children}
   node -> node
 end)
 |> WikitextEx.to_wikitext()
-#=> "Servus '''Wien''' <!-- keep me -->"
+#=> "Servus '''Großglockner''' <!-- keep me -->"
 ```
 
 ## Nodes
