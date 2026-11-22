@@ -23,6 +23,8 @@ description = "Install the toolchain, the dependencies and the git hooks, and bu
 run = [
   "mise install",
   "lefthook install",
+  # main's history is linear: pulling rebases instead of merging.
+  "git config pull.rebase true",
   "mix deps.get",
   "mix compile",
   "MIX_ENV=dev mix dialyzer --plt",
