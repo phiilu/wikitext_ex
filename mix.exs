@@ -45,7 +45,7 @@ defmodule WikitextEx.MixProject do
       {:credo_unnecessary_reduce, "== 0.4.0", only: [:dev, :test], runtime: false},
       {:dialyxir, "== 1.4.9", only: [:dev], runtime: false},
       {:ex_dna, "== 1.5.4", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
+      {:ex_doc, "== 0.38.2", only: :dev, runtime: false},
       {:ex_slop, "== 0.4.5", only: [:dev, :test], runtime: false},
       {:jump_credo_checks, "== 0.7.1", only: [:dev, :test], runtime: false},
       {:mix_audit, "== 2.1.5", only: [:dev, :test], runtime: false},
