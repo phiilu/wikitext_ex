@@ -27,3 +27,6 @@ wikitext_ex-*.tar
 
 # Python bytecode from scripts/
 __pycache__/
+
+# Claude Code settings local to one machine.
+/.claude/settings.local.json
