@@ -22,7 +22,7 @@ plain tuples, and writes a tree back to wikitext exactly as it was.
 ```elixir
 def deps do
   [
-    {:wikitext_ex, "~> 0.1.1"}
+    {:wikitext_ex, "~> 0.2.0"}
   ]
 end
 ```
