@@ -43,15 +43,11 @@ defmodule WikitextEx.ConformanceTest do
         @reference reference
 
         test "parses #{reference["name"]} (##{index}) as mwparserfromhell does" do
-          {:ok, nodes} = WikitextEx.parse(@reference["input"])
-
-          assert Reference.tree(nodes) == Reference.normalize(@reference["tree"])
+          Reference.assert_tree(@reference)
         end
 
         test "writes #{reference["name"]} (##{index}) back to its input" do
-          {:ok, nodes} = WikitextEx.parse(@reference["input"])
-
-          assert WikitextEx.to_wikitext(nodes) == @reference["input"]
+          Reference.assert_round_trip(@reference)
         end
       end
     end

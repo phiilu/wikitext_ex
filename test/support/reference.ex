@@ -10,12 +10,26 @@ defmodule WikitextEx.Test.Reference do
   line end is no difference between the two.
   """
 
+  import ExUnit.Assertions
+
   @doc "The cases of a reference file."
   def load!(path) do
     path
     |> File.read!()
     |> JSON.decode!()
     |> Map.fetch!("cases")
+  end
+
+  @doc "Asserts that WikitextEx parses the case's input into its reference tree."
+  def assert_tree(reference) do
+    {:ok, nodes} = WikitextEx.parse(reference["input"])
+    assert tree(nodes) == normalize(reference["tree"])
+  end
+
+  @doc "Asserts that the case's input, parsed and written back, is unchanged."
+  def assert_round_trip(reference) do
+    {:ok, nodes} = WikitextEx.parse(reference["input"])
+    assert WikitextEx.to_wikitext(nodes) == reference["input"]
   end
 
   @doc "A reference tree with adjacent text merged."

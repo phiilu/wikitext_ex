@@ -27,8 +27,6 @@ from mwparserfromhell.nodes.extras import Parameter
 from mwparserfromhell.parser import tokens as T
 from mwparserfromhell.parser.builder import Builder
 
-WHITESPACE = "".join(chr(c) for c in range(sys.maxunicode + 1) if chr(c).isspace())
-
 
 def tokenizer():
     if os.environ.get("MWPH_TOKENIZER") == "python":
@@ -50,7 +48,7 @@ def split_padding(text):
 
 def dump_token(token):
     name = type(token).__name__
-    attrs = {key: value for key, value in dict(token).items()}
+    attrs = dict(token)
     if name == "Text":
         return attrs["text"]
     return [name, attrs]
