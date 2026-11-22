@@ -34,7 +34,7 @@ jobs:
         id: beam
         uses: erlef/setup-beam@v1.24.1
         with:
-          version-file: mise.toml
+          version-file: .tool-versions
           version-type: strict
       - name: Cache deps and build
         uses: actions/cache@v6
@@ -81,7 +81,7 @@ jobs:
         id: beam
         uses: erlef/setup-beam@v1.24.1
         with:
-          version-file: mise.toml
+          version-file: .tool-versions
           version-type: strict
       - name: Set up Python and uv
         uses: jdx/mise-action@v5
@@ -120,7 +120,7 @@ jobs:
           esac
           if [ -z "$range" ] || ! changed=$(git diff --name-only "$range"); then
             echo "fuzz=true" >> "$GITHUB_OUTPUT"
-          elif grep -Eq '^(lib/|scripts/|test/fixtures/|mise\.toml$|\.github/workflows/ci\.yml$)' <<< "$changed"; then
+          elif grep -Eq '^(lib/|scripts/|test/fixtures/|mise\.toml$|\.tool-versions$|\.github/workflows/ci\.yml$)' <<< "$changed"; then
             echo "fuzz=true" >> "$GITHUB_OUTPUT"
           fi
       # The weekly run fuzzes a new, larger batch, its seed the run's ID in
@@ -143,7 +143,7 @@ jobs:
         id: beam
         uses: erlef/setup-beam@v1.24.1
         with:
-          version-file: mise.toml
+          version-file: .tool-versions
           version-type: strict
       - name: Cache deps and build
         uses: actions/cache@v6
@@ -176,7 +176,7 @@ jobs:
       - run: mix docs --warnings-as-errors
         if: always()
 
-  # Every Elixir minor release mix.exs accepts below the one mise.toml pins,
+  # Every Elixir minor release mix.exs accepts below the one .tool-versions pins,
   # read from both so neither a new pin nor a new requirement leaves the matrix
   # behind: the newest patch of each, on the newest OTP hex builds it for.
   elixir-versions:
@@ -190,7 +190,7 @@ jobs:
         shell: bash
         run: |
           minimum=$(sed -n 's/^ *elixir: "~> 1\.\([0-9]*\)".*/\1/p' mix.exs)
-          pinned=$(sed -n 's/^elixir = "1\.\([0-9]*\)\..*/\1/p' mise.toml)
+          pinned=$(sed -n 's/^elixir 1\.\([0-9]*\)\..*/\1/p' .tool-versions)
           matrix=$(curl -fsSL https://builds.hex.pm/builds/elixir/builds.txt |
             jq -R -s -c --argjson minimum "$minimum" --argjson pinned "$pinned" '
               [split("\n")[]
