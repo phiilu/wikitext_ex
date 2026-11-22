@@ -5,6 +5,7 @@
     ".": {
       "release-type": "elixir",
       "package-name": "wikitext_ex",
+      "include-component-in-tag": false,
       "bump-minor-pre-major": true,
       "extra-files": ["README.md"]
     }
