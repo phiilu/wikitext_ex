@@ -40,6 +40,7 @@ defmodule WikitextEx.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:benchee, "== 1.5.1", only: :dev},
       {:credo, "== 1.7.19", only: [:dev, :test], runtime: false},
       {:credo_unnecessary_reduce, "== 0.4.0", only: [:dev, :test], runtime: false},
       {:dialyxir, "== 1.4.9", only: [:dev], runtime: false},
@@ -55,6 +56,7 @@ defmodule WikitextEx.MixProject do
   defp aliases do
     [
       "format-lint": ["format", "compile --warnings-as-errors", "credo --strict"],
+      bench: "run bench/parse.exs",
       "deps.audit.check":
         "deps.audit --ignore-advisory-ids #{Enum.join(@ignored_advisories, ",")}"
     ]

@@ -3,7 +3,7 @@
     %{
       name: "default",
       files: %{
-        included: ["lib/", "test/", "credo_checks/"],
+        included: ["bench/", "lib/", "test/", "credo_checks/"],
         excluded: [~r"/_build/", ~r"/deps/"]
       },
       plugins: [{ExDNA.Credo, []}, {ExSlop, []}],

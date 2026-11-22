@@ -17,7 +17,7 @@ pre-commit:
       run: mise exec -- mix format --check-formatted {staged_files}
     # The glob mirrors .credo.exs `included`: explicit paths override it.
     credo:
-      glob: "{lib,test}/*.{ex,exs}"
+      glob: "{bench,lib,test,credo_checks}/*.{ex,exs}"
       run: mise exec -- mix credo --strict {staged_files}
 
 # Checks too slow for every commit; CI runs them all again. lefthook skips a
