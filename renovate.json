@@ -34,7 +34,7 @@
     },
     {
       "description": "Elixir is built for an OTP release, so the two move together.",
-      "matchManagers": ["mise"],
+      "matchManagers": ["asdf"],
       "matchDepNames": ["elixir", "erlang"],
       "groupName": "Elixir and OTP"
     },

@@ -27,7 +27,7 @@ Check every function you write against them:
 
 ## Toolchain
 
-`mise.toml` pins the toolchain, and an agent shell isn't mise-activated: a bare `mix` resolves to another global install and recompiles `_build` for it. Run project commands as `mise exec -- mix …`.
+`mise.toml` and `.tool-versions` pin the toolchain, and an agent shell isn't mise-activated: a bare `mix` resolves to another global install and recompiles `_build` for it. Run project commands as `mise exec -- mix …`.
 
 ## Done
 

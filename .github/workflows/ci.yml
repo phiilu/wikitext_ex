@@ -29,15 +29,15 @@ jobs:
     env:
       MIX_ENV: test
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Set up Elixir
         id: beam
-        uses: erlef/setup-beam@v1.24.1
+        uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
-          version-file: mise.toml
+          version-file: .tool-versions
           version-type: strict
       - name: Cache deps and build
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             deps
@@ -73,23 +73,23 @@ jobs:
       # Elixir and OTP come from setup-beam; mise installs only the Python side.
       MISE_TASK_RUN_AUTO_INSTALL: "false"
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # The pull request's changes are diffed against its base.
           fetch-depth: 0
       - name: Set up Elixir
         id: beam
-        uses: erlef/setup-beam@v1.24.1
+        uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
-          version-file: mise.toml
+          version-file: .tool-versions
           version-type: strict
       - name: Set up Python and uv
-        uses: jdx/mise-action@v5
+        uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5
         with:
-          version: 2026.11.8
+          version: 2026.11.10
           install_args: python uv
       - name: Restore deps and build
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             deps
@@ -101,18 +101,26 @@ jobs:
       - run: mise run reference:edge-cases
       - name: Check the references are unchanged
         run: git diff --exit-code test/fixtures
-      # A pull request fuzzes only when what parses, the reference or this
-      # workflow changed: with a fixed seed nothing else can change the result.
+      # A pull request, or a push to main, fuzzes only when what parses, the
+      # reference or this workflow changed since its base: with a fixed seed
+      # nothing else can change the result. The weekly and manual runs always
+      # fuzz, and so does a push whose base is gone, as after a force push.
       - name: Check whether the parser or the reference changed
         id: changes
         shell: bash
         env:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
         run: |
-          if [ "$EVENT" != pull_request ] ||
-            git diff --name-only "origin/$BASE...HEAD" |
-              grep -Eq '^(lib/|scripts/|test/fixtures/|mise\.toml$|\.github/workflows/ci\.yml$)'; then
+          case "$EVENT" in
+            pull_request) range="origin/$BASE...HEAD" ;;
+            push) range="$BEFORE..HEAD" ;;
+            *) range="" ;;
+          esac
+          if [ -z "$range" ] || ! changed=$(git diff --name-only "$range"); then
+            echo "fuzz=true" >> "$GITHUB_OUTPUT"
+          elif grep -Eq '^(lib/|scripts/|test/fixtures/|mise\.toml$|\.tool-versions$|\.github/workflows/ci\.yml$)' <<< "$changed"; then
             echo "fuzz=true" >> "$GITHUB_OUTPUT"
           fi
       # The weekly run fuzzes a new, larger batch, its seed the run's ID in
@@ -130,15 +138,15 @@ jobs:
     env:
       MIX_ENV: dev
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Set up Elixir
         id: beam
-        uses: erlef/setup-beam@v1.24.1
+        uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
-          version-file: mise.toml
+          version-file: .tool-versions
           version-type: strict
       - name: Cache deps and build
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             deps
@@ -150,7 +158,7 @@ jobs:
       # does not rebuild them on the next run.
       - name: Restore PLTs
         id: plt-cache
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: priv/plts
           key: plt-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
@@ -160,7 +168,7 @@ jobs:
         run: mix dialyzer --plt
       - name: Save PLTs
         if: steps.plt-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: priv/plts
           key: ${{ steps.plt-cache.outputs.cache-primary-key }}
@@ -168,7 +176,7 @@ jobs:
       - run: mix docs --warnings-as-errors
         if: always()
 
-  # Every Elixir minor release mix.exs accepts below the one mise.toml pins,
+  # Every Elixir minor release mix.exs accepts below the one .tool-versions pins,
   # read from both so neither a new pin nor a new requirement leaves the matrix
   # behind: the newest patch of each, on the newest OTP hex builds it for.
   elixir-versions:
@@ -176,13 +184,13 @@ jobs:
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - id: matrix
         # bash fails the step when curl does, rather than writing an empty matrix.
         shell: bash
         run: |
           minimum=$(sed -n 's/^ *elixir: "~> 1\.\([0-9]*\)".*/\1/p' mix.exs)
-          pinned=$(sed -n 's/^elixir = "1\.\([0-9]*\)\..*/\1/p' mise.toml)
+          pinned=$(sed -n 's/^elixir 1\.\([0-9]*\)\..*/\1/p' .tool-versions)
           matrix=$(curl -fsSL https://builds.hex.pm/builds/elixir/builds.txt |
             jq -R -s -c --argjson minimum "$minimum" --argjson pinned "$pinned" '
               [split("\n")[]
@@ -206,15 +214,15 @@ jobs:
     env:
       MIX_ENV: test
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Set up Elixir
         id: beam
-        uses: erlef/setup-beam@v1.24.1
+        uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
           elixir-version: ${{ matrix.elixir }}
           otp-version: ${{ matrix.otp }}
       - name: Cache deps and build
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             deps
@@ -229,14 +237,14 @@ jobs:
   hooks:
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # gitleaks scans every commit.
           fetch-depth: 0
       - name: Set up the hook tools
-        uses: jdx/mise-action@v5
+        uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5
         with:
-          version: 2026.11.8
+          version: 2026.11.10
           install_args: lefthook gitleaks actionlint
       - run: lefthook validate
       - run: actionlint
