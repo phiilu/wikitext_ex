@@ -9,6 +9,16 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request supersedes its running checks; main's run to
+# completion.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Caches are keyed on the OTP, Elixir and lock they were built with, and fall
+# back to the newest cache of the same OTP and Elixir. A job sharing another's
+# cache only restores it, so one job saves each key. The release workflow uses
+# no cache, so nothing a pull request wrote can reach a published package.
 jobs:
   check:
     runs-on: ubuntu-26.04
@@ -28,9 +38,9 @@ jobs:
           path: |
             deps
             _build
-          key: mix-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
-          restore-keys: mix-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-
-      - run: mix deps.get
+          key: mix-test-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: mix-test-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-
+      - run: mix deps.get --check-locked
       - run: mix compile --warnings-as-errors
         if: always()
       - run: mix format --check-formatted
@@ -45,8 +55,47 @@ jobs:
         if: always()
       - run: mix test --warnings-as-errors
         if: always()
+      - name: Build the Hex package
+        run: mix hex.build
+        if: always()
 
-  # Dialyxir is a :dev dependency.
+  # Regenerates the references with the mwparserfromhell the reference script
+  # pins and fuzzes against it, so an update of the reference or of Python
+  # merges only while WikitextEx still parses as the reference does.
+  reference:
+    runs-on: ubuntu-26.04
+    env:
+      MIX_ENV: test
+      # Elixir and OTP come from setup-beam; mise installs only the Python side.
+      MISE_TASK_RUN_AUTO_INSTALL: "false"
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Elixir
+        id: beam
+        uses: erlef/setup-beam@v1.24.1
+        with:
+          version-file: mise.toml
+          version-type: strict
+      - name: Set up Python and uv
+        uses: jdx/mise-action@v5
+        with:
+          install_args: python uv
+      - name: Restore deps and build
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            deps
+            _build
+          key: mix-test-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: mix-test-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-
+      - run: mix deps.get --check-locked
+      - run: mise run reference:suite
+      - run: mise run reference:edge-cases
+      - name: Check the references are unchanged
+        run: git diff --exit-code test/fixtures
+      - run: mise run fuzz 1 10000
+
+  # Dialyxir and ExDoc are :dev dependencies.
   dialyzer:
     runs-on: ubuntu-26.04
     env:
@@ -59,29 +108,95 @@ jobs:
         with:
           version-file: mise.toml
           version-type: strict
-      - name: Cache deps, build and PLTs
+      - name: Cache deps and build
         uses: actions/cache@v6
         with:
           path: |
             deps
             _build
-            priv/plts
-          key: dialyzer-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
-          restore-keys: dialyzer-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-
-      - run: mix deps.get
-      - run: mix dialyzer
+          key: mix-dev-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: mix-dev-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-
+      - run: mix deps.get --check-locked
+      # The PLTs are saved as soon as they are built, so a failing analysis
+      # does not rebuild them on the next run.
+      - name: Restore PLTs
+        id: plt-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: priv/plts
+          key: plt-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: plt-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-
+      - name: Build PLTs
+        if: steps.plt-cache.outputs.cache-hit != 'true'
+        run: mix dialyzer --plt
+      - name: Save PLTs
+        if: steps.plt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: priv/plts
+          key: ${{ steps.plt-cache.outputs.cache-primary-key }}
+      - run: mix dialyzer --format github
+      - run: mix docs --warnings-as-errors
+        if: always()
 
-  # The oldest Elixir mix.exs accepts, on its newest OTP.
-  minimum:
+  # Every Elixir release mix.exs accepts below the pinned one, each on its
+  # newest OTP.
+  compatibility:
+    name: elixir ${{ matrix.elixir }}, otp ${{ matrix.otp }}
     runs-on: ubuntu-26.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - elixir: "1.18"
+            otp: "27"
+          - elixir: "1.19"
+            otp: "28"
     env:
       MIX_ENV: test
     steps:
       - uses: actions/checkout@v7
       - name: Set up Elixir
+        id: beam
         uses: erlef/setup-beam@v1.24.1
         with:
-          elixir-version: "1.18"
-          otp-version: "27"
-      - run: mix deps.get
+          elixir-version: ${{ matrix.elixir }}
+          otp-version: ${{ matrix.otp }}
+      - name: Cache deps and build
+        uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: mix-test-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: mix-test-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-
+      - run: mix deps.get --check-locked
       - run: mix test
+
+  # The tools the git hooks run, so an update of one is checked before it
+  # merges.
+  hooks:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # gitleaks scans every commit.
+          fetch-depth: 0
+      - name: Set up the hook tools
+        uses: jdx/mise-action@v5
+        with:
+          install_args: lefthook gitleaks actionlint
+      - run: lefthook validate
+      - run: actionlint
+      - run: gitleaks git --redact --no-banner
+
+  # The one check the ruleset requires, so its list does not follow the jobs
+  # and the matrix: it fails when any job above failed or was cancelled.
+  ci:
+    if: always()
+    needs: [check, reference, dialyzer, compatibility, hooks]
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Check every job passed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
