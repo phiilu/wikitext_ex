@@ -24,3 +24,6 @@ wikitext_ex-*.tar
 
 # Dialyzer's PLTs, built by `mix dialyzer`.
 /priv/plts/
+
+# Python bytecode from scripts/
+__pycache__/

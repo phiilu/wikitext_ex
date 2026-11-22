@@ -13,6 +13,7 @@ defmodule WikitextEx.MixProject do
       app: :wikitext_ex,
       version: @version,
       elixir: "~> 1.18",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
@@ -33,10 +34,12 @@ defmodule WikitextEx.MixProject do
     ]
   end
 
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_env), do: ["lib"]
+
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:nimble_parsec, "~> 1.4"},
       {:credo, "== 1.7.19", only: [:dev, :test], runtime: false},
       {:credo_unnecessary_reduce, "== 0.4.0", only: [:dev, :test], runtime: false},
       {:dialyxir, "== 1.4.9", only: [:dev], runtime: false},
@@ -59,9 +62,8 @@ defmodule WikitextEx.MixProject do
 
   defp description do
     """
-    A MediaWiki wikitext parser for Elixir that converts wikitext markup 
-    into structured AST nodes, supporting templates, links, formatting, tables, 
-    and other wikitext elements commonly found in MediaWiki content.
+    A MediaWiki wikitext parser in pure Elixir: wikitext to a tree of tuples
+    and back, losslessly.
     """
   end
 

@@ -1,151 +1,85 @@
 defmodule WikitextEx do
   @moduledoc """
-  WikitextEx - A robust MediaWiki wikitext parser for Elixir.
+  A MediaWiki wikitext parser.
 
-  WikitextEx provides functionality to parse MediaWiki wikitext markup into
-  structured AST nodes, making it easy to process and analyze wiki content.
+  `parse/2` turns wikitext into a list of nodes, and `to_wikitext/1` turns
+  nodes back into wikitext: writing a parsed tree gives back exactly the text it
+  was parsed from.
 
-  ## Quick Start
+  Text is a plain binary. Every other node is a `{type, meta, children}` tuple,
+  the shape of Elixir's own AST, so `Macro.prewalk/2` and friends walk it:
 
-      iex> # Parse wikitext into AST
-      iex> {:ok, ast, _, _, _, _} = WikitextEx.parse("'''Bold''' and ''italic'' text")
-      iex> # Work with the parsed AST
-      iex> templates = WikitextEx.find_templates(ast)
-      iex> length(templates)
-      0
-      iex> text_content = WikitextEx.extract_text(ast)
-      iex> text_content
-      "Bold and italic text"
+      iex> {:ok, nodes} = WikitextEx.parse("{{Infobox person|name=Wolfgang Amadeus Mozart}} was a ''composer''")
+      iex> nodes
+      [
+        {:template, %{name: "Infobox person", name_padding: {"", ""}},
+         [{:param, %{name: "name", name_padding: {"", ""}, named: true}, ["Wolfgang Amadeus Mozart"]}]},
+        " was a ",
+        {:italic, %{}, ["composer"]}
+      ]
 
-  ## Main Functions
-
-  - `parse/1` - Parse wikitext string into AST
-  - `find_templates/1` - Extract all template nodes from AST
-  - `find_links/1` - Extract all link nodes from AST
-  - `extract_text/1` - Get plain text content from AST
+  See `WikitextEx.AST` for every node type.
   """
 
-  alias WikitextEx.{Parser, AST}
+  alias WikitextEx.AST
+  alias WikitextEx.Builder
+  alias WikitextEx.Tokenizer
+  alias WikitextEx.Writer
 
   @doc """
-  Parse wikitext markup into an AST.
+  Parses `wikitext` into nodes.
 
-  Returns the same tuple format as NimbleParsec for consistency:
-  `{:ok, ast, rest, context, position, byte_offset}` on success or
-  `{:error, reason, rest, context, position, byte_offset}` on failure.
+  Wikitext has no syntax errors: markup that does not form a construct, such
+  as an unclosed `{{`, is text. The only error is input that is not UTF-8.
+
+  ## Options
+
+    * `:skip_style_tags` - when `true`, `''` and `'''` are text rather than
+      italic and bold. Defaults to `false`.
 
   ## Examples
 
-      iex> {:ok, ast, _, _, _, _} = WikitextEx.parse("'''Bold text'''")
-      iex> [%WikitextEx.AST{type: :bold, value: nil, children: [%WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: "Bold text"}, children: []}]}] = ast
-      [%WikitextEx.AST{type: :bold, value: nil, children: [%WikitextEx.AST{type: :text, value: %WikitextEx.AST.Text{content: "Bold text"}, children: []}]}]
+      iex> WikitextEx.parse("[[Vienna|the capital]]")
+      {:ok, [{:link, %{target: "Vienna", target_padding: {"", ""}, pipe: true}, ["the capital"]}]}
 
-      iex> {:ok, ast, _, _, _, _} = WikitextEx.parse("{{template|arg}}")
-      iex> [%WikitextEx.AST{type: :template, value: %WikitextEx.AST.Template{name: "template", args: [positional: "arg"]}, children: []}] = ast
-      [%WikitextEx.AST{type: :template, value: %WikitextEx.AST.Template{name: "template", args: [positional: "arg"]}, children: []}]
+      iex> WikitextEx.parse("{{unclosed")
+      {:ok, ["{{unclosed"]}
 
   """
-  @spec parse(String.t()) ::
-          {:ok, [AST.t()], String.t(), map(), {non_neg_integer(), non_neg_integer()},
-           non_neg_integer()}
-          | {:error, String.t(), String.t(), map(), {non_neg_integer(), non_neg_integer()},
-             non_neg_integer()}
-  def parse(wikitext) when is_binary(wikitext) do
-    Parser.parse(wikitext)
+  @spec parse(String.t(), keyword()) :: {:ok, [AST.t()]} | {:error, :invalid_utf8}
+  def parse(wikitext, opts \\ []) when is_binary(wikitext) do
+    if String.valid?(wikitext) do
+      {:ok,
+       wikitext
+       |> Tokenizer.tokenize(opts)
+       |> Builder.build()}
+    else
+      {:error, :invalid_utf8}
+    end
   end
 
   @doc """
-  Find all template nodes in an AST.
+  Like `parse/2`, but returns the nodes or raises `ArgumentError`.
 
-  ## Examples
-
-      iex> {:ok, ast, _, _, _, _} = WikitextEx.parse("{{template1}} and {{template2|arg}}")
-      iex> templates = WikitextEx.find_templates(ast)
-      iex> length(templates)
-      2
+      iex> WikitextEx.parse!("== History ==")
+      [{:heading, %{level: 2}, [" History "]}]
 
   """
-  @spec find_templates([AST.t()]) :: [AST.t()]
-  def find_templates(ast_nodes) when is_list(ast_nodes) do
-    Enum.flat_map(ast_nodes, &do_find_templates/1)
+  @spec parse!(String.t(), keyword()) :: [AST.t()]
+  def parse!(wikitext, opts \\ []) do
+    case parse(wikitext, opts) do
+      {:ok, nodes} -> nodes
+      {:error, :invalid_utf8} -> raise ArgumentError, "wikitext is not valid UTF-8"
+    end
   end
-
-  defp do_find_templates(%AST{type: :template} = node), do: [node]
-  defp do_find_templates(%AST{children: children}), do: find_templates(children)
-  defp do_find_templates(_), do: []
 
   @doc """
-  Find all link nodes in an AST (including categories and files).
+  Writes nodes back to wikitext.
 
-  ## Examples
-
-      iex> {:ok, ast, _, _, _, _} = WikitextEx.parse("[[Article]] [[Category:Example]]")
-      iex> links = WikitextEx.find_links(ast)
-      iex> length(links)
-      2
+      iex> "{{cite web |url=https://example.org |title=Congress of Vienna}}" |> WikitextEx.parse!() |> WikitextEx.to_wikitext()
+      "{{cite web |url=https://example.org |title=Congress of Vienna}}"
 
   """
-  @spec find_links([AST.t()]) :: [AST.t()]
-  def find_links(ast_nodes) when is_list(ast_nodes) do
-    Enum.flat_map(ast_nodes, &do_find_links/1)
-  end
-
-  defp do_find_links(%AST{type: type} = node)
-       when type in [:link, :category, :file, :interlang_link] do
-    [node]
-  end
-
-  defp do_find_links(%AST{children: children}), do: find_links(children)
-  defp do_find_links(_), do: []
-
-  @doc """
-  Extract plain text content from AST nodes.
-
-  This function recursively traverses the AST and extracts all text content,
-  ignoring markup and structure.
-
-  ## Examples
-
-      iex> {:ok, ast, _, _, _, _} = WikitextEx.parse("'''Bold''' and ''italic'' text")
-      iex> WikitextEx.extract_text(ast)
-      "Bold and italic text"
-
-  """
-  @spec extract_text([AST.t()]) :: String.t()
-  def extract_text(ast_nodes) when is_list(ast_nodes) do
-    ast_nodes
-    |> Enum.map(&do_extract_text/1)
-    |> Enum.join("")
-    |> String.trim()
-  end
-
-  defp do_extract_text(%AST{type: :text, value: %AST.Text{content: content}}) do
-    content
-  end
-
-  defp do_extract_text(%AST{children: children}) do
-    extract_text(children)
-  end
-
-  defp do_extract_text(_), do: ""
-
-  @doc """
-  Find all header nodes in an AST.
-
-  ## Examples
-
-      iex> {:ok, ast, _, _, _, _} = WikitextEx.parse("== Header ==\\nContent")
-      iex> headers = WikitextEx.find_headers(ast)
-      iex> length(headers)
-      1
-
-  """
-  @spec find_headers([AST.t()]) :: [AST.t()]
-  def find_headers(ast_nodes) when is_list(ast_nodes) do
-    Enum.flat_map(ast_nodes, &do_find_headers/1)
-  end
-
-  defp do_find_headers(%AST{type: :header} = node), do: [node]
-  defp do_find_headers(%AST{children: children}), do: find_headers(children)
-  defp do_find_headers(_), do: []
+  @spec to_wikitext(AST.t() | [AST.t()]) :: String.t()
+  defdelegate to_wikitext(nodes), to: Writer
 end
