@@ -2,7 +2,7 @@ commit-msg:
   commands:
     conventional-commit:
       run: >-
-        head -n 1 "{1}" | grep -Eq '^(feat|fix|perf|chore|refactor|test|docs|style|ci|build)(\(.+\))?!?: .+'
+        head -n 1 "{1}" | grep -Eq '^(feat|fix|perf|chore|refactor|revert|test|docs|style|ci|build)(\(.+\))?!?: .+'
       fail_text: "Commit message must use conventional commit format, for example: feat: description"
 
 pre-commit:
