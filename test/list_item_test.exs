@@ -44,7 +44,7 @@ defmodule WikitextEx.ListItemTest do
   end
 
   test "a list item writes back to its line" do
-    text = "* [[Alpine marmot]]\n*# ''Murmeltier''\n;Height: 3798 m"
+    text = "* [[Großglockner]]\n*# ''Hohe Tauern''\n;Height: 3798 m"
 
     assert text
            |> WikitextEx.parse!()

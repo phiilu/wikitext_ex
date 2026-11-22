@@ -39,8 +39,8 @@ defmodule WikitextEx do
 
   ## Examples
 
-      iex> WikitextEx.parse("[[Großglockner|the highest mountain]]")
-      {:ok, [{:link, %{target: "Großglockner", target_padding: {"", ""}, pipe: true}, ["the highest mountain"]}]}
+      iex> WikitextEx.parse("[[Großglockner|Austria's highest mountain]]")
+      {:ok, [{:link, %{target: "Großglockner", target_padding: {"", ""}, pipe: true}, ["Austria's highest mountain"]}]}
 
       iex> WikitextEx.parse("{{unclosed")
       {:ok, ["{{unclosed"]}

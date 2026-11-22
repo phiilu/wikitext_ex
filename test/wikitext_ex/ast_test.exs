@@ -5,7 +5,7 @@ defmodule WikitextEx.ASTTest do
 
   doctest AST
 
-  @page "{{Speciesbox|name={{lang|de|Alpenmurmeltier}}}} and ''{{sfn|Huber|2019}}''"
+  @page "{{Infobox mountain|name={{lang|de|Großglockner}}}} and ''{{convert|3798|m}}''"
 
   describe "prewalk/3" do
     test "visits every node before its children, template parameters included" do
@@ -17,7 +17,7 @@ defmodule WikitextEx.ASTTest do
           node, names -> {node, names}
         end)
 
-      assert Enum.reverse(names) == ["Speciesbox", "lang", "sfn"]
+      assert Enum.reverse(names) == ["Infobox mountain", "lang", "convert"]
     end
   end
 
@@ -55,7 +55,7 @@ defmodule WikitextEx.ASTTest do
         |> AST.filter(&match?({:template, _meta, _params}, &1))
 
       assert Enum.map(templates, fn {:template, %{name: name}, _params} -> name end) ==
-               ["Speciesbox", "lang", "sfn"]
+               ["Infobox mountain", "lang", "convert"]
     end
   end
 
@@ -63,7 +63,7 @@ defmodule WikitextEx.ASTTest do
     test "is what a reader sees: link text, entities as characters, no templates or comments" do
       nodes =
         WikitextEx.parse!(
-          "'''[[Rupicapra rupicapra|Chamois]]''' &amp; {{cite book|title=Fauna of the Alps}}<!-- note --> [http://x.org site]"
+          "'''[[Rupicapra rupicapra|Chamois]]''' &amp; {{lang|de|Gämse}}<!-- note --> [http://x.org site]"
         )
 
       assert AST.text(nodes) == "Chamois &  site"

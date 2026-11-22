@@ -81,14 +81,14 @@ Rewrite the nodes you care about and write the tree back. Everything else comes
 out as it went in:
 
 ```elixir
-"Servus ''Großglockner'' <!-- keep me -->"
+"The ''Großglockner'' is Austria's highest mountain. <!-- keep me -->"
 |> WikitextEx.parse!()
 |> WikitextEx.AST.prewalk(fn
   {:italic, _meta, children} -> {:bold, %{}, children}
   node -> node
 end)
 |> WikitextEx.to_wikitext()
-#=> "Servus '''Großglockner''' <!-- keep me -->"
+#=> "The '''Großglockner''' is Austria's highest mountain. <!-- keep me -->"
 ```
 
 ## Nodes

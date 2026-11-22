@@ -153,7 +153,7 @@ defmodule WikitextEx.AST do
   entities as their characters. Templates, arguments and comments have none;
   a link without text is its target, a bare URL itself.
 
-      iex> "'''[[Rupicapra rupicapra|Chamois]]''' &amp; {{cite book|title=Fauna of the Alps}}"
+      iex> "'''[[Rupicapra rupicapra|Chamois]]''' &amp; {{lang|de|Gämse}}"
       ...> |> WikitextEx.parse!()
       ...> |> WikitextEx.AST.text()
       "Chamois & "
