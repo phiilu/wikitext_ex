@@ -1,0 +1,11 @@
+[tools]
+# The versions CI checks with; the library supports Elixir 1.18 and up (mix.exs).
+elixir = "1.20.5-otp-29"
+erlang = "29.1.2"
+lefthook = "latest"
+gitleaks = "latest"
+actionlint = "latest"
+
+[hooks]
+# Installs the git hooks the first time the repo is entered; idempotent.
+enter = "lefthook install > /dev/null"

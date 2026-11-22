@@ -1,0 +1,43 @@
+commit-msg:
+  commands:
+    conventional-commit:
+      run: >-
+        head -n 1 "{1}" | grep -Eq '^(feat|fix|perf|chore|refactor|test|docs|style|ci|build)(\(.+\))?!?: .+'
+      fail_text: "Commit message must use conventional commit format, for example: feat: description"
+
+pre-commit:
+  commands:
+    gitleaks:
+      run: mise exec -- gitleaks git --pre-commit --staged --redact --no-banner
+    actionlint:
+      glob: ".github/workflows/*.yml"
+      run: mise exec -- actionlint {staged_files}
+    format:
+      glob: "*.{ex,exs}"
+      run: mise exec -- mix format --check-formatted {staged_files}
+    # The glob mirrors .credo.exs `included`: explicit paths override it.
+    credo:
+      glob: "{lib,test}/*.{ex,exs}"
+      run: mise exec -- mix credo --strict {staged_files}
+
+# Checks too slow for every commit; CI runs them all again. lefthook skips a
+# job when no file the push changes matches its glob.
+pre-push:
+  jobs:
+    - name: compile
+      glob: &compile_inputs "{*.{ex,exs},mix.lock}"
+      run: mise exec -- mix compile --warnings-as-errors
+    - name: test
+      glob: "{*.{ex,exs},mix.lock,test/fixtures/**}"
+      run: mise exec -- mix test --warnings-as-errors
+    - name: dialyzer
+      glob: *compile_inputs
+      run: mise exec -- mix dialyzer
+    # The advisories it reads change without the tree, so it runs on every
+    # push its glob matches.
+    - name: deps-audit
+      glob: "mix.lock"
+      run: mise exec -- mix deps.audit.check
+    - name: deps-unused
+      glob: "{mix.exs,mix.lock}"
+      run: mise exec -- mix deps.unlock --check-unused
