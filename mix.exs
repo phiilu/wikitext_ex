@@ -1,7 +1,7 @@
 defmodule WikitextEx.MixProject do
   use Mix.Project
 
-  @version "0.1.1"
+  @version "0.2.0"
 
   # Read by both auditors: `mix hex.audit` through :hex below, `mix deps.audit`
   # through the deps.audit.check alias.
