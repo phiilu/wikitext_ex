@@ -32,7 +32,7 @@ defmodule WikitextEx.AST do
   | `{\\| ... \\|}` | `{:table, %{attributes: attributes, padding: padding}, rows_and_cells}` |
   | `\\|-` | `{:table_row, %{attributes: attributes, padding: padding}, cells}` |
   | `\\|`, `\\|\\|`, `!`, `!!` | `{:table_cell, %{header: boolean, markup: markup, attributes: attributes, padding: padding, separator: "\\|" \\| nil}, contents}` |
-  | `<tag attr="v">...</tag>` | `{:html_tag, %{tag: tag, attributes: attributes, self_closing: boolean, ...}, contents}` |
+  | `<tag attr="v">...</tag>` | `{:html_tag, %{tag: tag, attributes: attributes, padding: padding, self_closing: boolean, implicit: boolean, invalid: boolean, closing_tag: tag \\| nil}, contents}` |
   | `&amp;`, `&#38;` | `{:entity, %{source: "&amp;", char: "&"}, []}` |
   | `<!-- text -->` | `{:comment, %{content: " text "}, []}` |
 
@@ -45,6 +45,13 @@ defmodule WikitextEx.AST do
   Attributes are maps with `:name` and `:value` (`nil` for an attribute
   without one), and `:quote`, `:pad_first`, `:pad_before_eq` and
   `:pad_after_eq` to write them back. `attributes/1` gives them as a map.
+
+  A tag's or table markup's `padding` is the whitespace after its attributes:
+  before an HTML tag's `>` or `/>`, before a table cell's separator, and after
+  a table's or row's markup, its newline included. A void tag written without its
+  slash, `<br>`, is `self_closing` and `implicit`; one written as a closing
+  tag, `</br>`, is `invalid` too. `closing_tag` is the tag's name as its
+  closing tag writes it, `nil` for a self-closing tag.
 
   Tags whose contents are not wikitext, such as `<nowiki>`, `<pre>` and
   `<math>`, hold their contents as text.
