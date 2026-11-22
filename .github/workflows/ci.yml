@@ -139,19 +139,41 @@ jobs:
       - run: mix docs --warnings-as-errors
         if: always()
 
-  # Every Elixir release mix.exs accepts below the pinned one, each on its
-  # newest OTP.
+  # Every Elixir minor release mix.exs accepts below the one mise.toml pins,
+  # read from both so neither a new pin nor a new requirement leaves the matrix
+  # behind: the newest patch of each, on the newest OTP hex builds it for.
+  elixir-versions:
+    runs-on: ubuntu-26.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: matrix
+        # bash fails the step when curl does, rather than writing an empty matrix.
+        shell: bash
+        run: |
+          minimum=$(sed -n 's/^ *elixir: "~> 1\.\([0-9]*\)".*/\1/p' mix.exs)
+          pinned=$(sed -n 's/^elixir = "1\.\([0-9]*\)\..*/\1/p' mise.toml)
+          matrix=$(curl -fsSL https://builds.hex.pm/builds/elixir/builds.txt |
+            jq -R -s -c --argjson minimum "$minimum" --argjson pinned "$pinned" '
+              [split("\n")[]
+               | capture("^v1\\.(?<minor>[0-9]+)\\.(?<patch>[0-9]+)-otp-(?<otp>[0-9]+) ")
+               | map_values(tonumber)
+               | select(.minor >= $minimum and .minor < $pinned)]
+              | group_by(.minor)
+              | map(max_by([.patch, .otp]) | {elixir: "1.\(.minor).\(.patch)", otp: "\(.otp)"})
+              | {include: .}')
+          echo "$matrix"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
   compatibility:
     name: elixir ${{ matrix.elixir }}, otp ${{ matrix.otp }}
+    needs: elixir-versions
+    if: fromJSON(needs.elixir-versions.outputs.matrix).include[0] != null
     runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - elixir: "1.18"
-            otp: "27"
-          - elixir: "1.19"
-            otp: "28"
+      matrix: ${{ fromJSON(needs.elixir-versions.outputs.matrix) }}
     env:
       MIX_ENV: test
     steps:
@@ -194,7 +216,7 @@ jobs:
   # and the matrix: it fails when any job above failed or was cancelled.
   ci:
     if: always()
-    needs: [check, reference, dialyzer, compatibility, hooks]
+    needs: [check, reference, dialyzer, elixir-versions, compatibility, hooks]
     runs-on: ubuntu-26.04
     steps:
       - name: Check every job passed
