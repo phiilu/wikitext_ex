@@ -1,7 +1,13 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:best-practices", ":semanticCommits", ":semanticCommitTypeAll(chore)"],
-  "labels": ["dependencies"],
+  "extends": [
+    "config:best-practices",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(chore)"
+  ],
+  "labels": [
+    "dependencies"
+  ],
   "osvVulnerabilityAlerts": true,
   "lockFileMaintenance": {
     "enabled": true,
@@ -9,27 +15,66 @@
   },
   "packageRules": [
     {
-      "description": "Merge everything short of a major update once CI is green.",
-      "matchUpdateTypes": ["minor", "patch", "pin", "pinDigest", "digest"],
+      "description": "CI is the safety net: every update merges once it is green, majors included.",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "pinDigest",
+        "digest"
+      ],
       "automerge": true
     },
     {
+      "description": "release-please only runs on main after a merge, so no check covers its update before it.",
+      "matchPackageNames": [
+        "googleapis/release-please-action"
+      ],
+      "automerge": false
+    },
+    {
       "description": "Give a new release three days to be flagged as malicious before it is proposed.",
-      "matchUpdateTypes": ["major", "minor", "patch"],
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch"
+      ],
       "minimumReleaseAge": "3 days",
       "internalChecksFilter": "strict"
     },
     {
       "description": "A runtime dependency's update reaches users, so it cuts a release.",
-      "matchManagers": ["mix"],
-      "matchDepTypes": ["prod"],
+      "matchManagers": [
+        "mix"
+      ],
+      "matchDepTypes": [
+        "prod"
+      ],
       "semanticCommitType": "fix"
     },
     {
       "description": "Elixir is built for an OTP release, so the two move together.",
-      "matchManagers": ["mise"],
-      "matchDepNames": ["elixir", "erlang"],
+      "matchManagers": [
+        "mise"
+      ],
+      "matchDepNames": [
+        "elixir",
+        "erlang"
+      ],
       "groupName": "Elixir and OTP"
+    },
+    {
+      "description": "The reference's update is test tooling; CI regenerates every reference with it.",
+      "matchManagers": [
+        "pep723"
+      ],
+      "semanticCommitType": "test"
     }
-  ]
+  ],
+  "pep723": {
+    "managerFilePatterns": [
+      "/^scripts/mwph_reference\\.py$/"
+    ]
+  }
 }
