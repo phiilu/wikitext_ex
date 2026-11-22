@@ -3,10 +3,11 @@
     %{
       name: "default",
       files: %{
-        included: ["lib/", "test/"],
+        included: ["lib/", "test/", "credo_checks/"],
         excluded: [~r"/_build/", ~r"/deps/"]
       },
       plugins: [{ExDNA.Credo, []}, {ExSlop, []}],
+      requires: ["./credo_checks/**/*.ex"],
       strict: true,
       parse_timeout: 5000,
       color: true,
@@ -64,6 +65,7 @@
             {Credo.Check.Readability.TrailingBlankLine, []},
             {Credo.Check.Readability.TrailingWhiteSpace, []},
             {Credo.Check.Readability.VariableNames, []},
+            {WikitextEx.Checks.SingleLetterVariable, []},
             {Credo.Check.Readability.WithCustomTaggedTuple, []},
             {Credo.Check.Readability.WithSingleClause, []},
 
