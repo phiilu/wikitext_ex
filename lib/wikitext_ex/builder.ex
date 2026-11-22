@@ -123,10 +123,10 @@ defmodule WikitextEx.Builder do
   # The entity's source, codepoint, and the tokens after it.
   defp entity([
          {:html_entity_numeric, _attrs},
-         {:html_entity_hex, %{char: x}},
+         {:html_entity_hex, %{char: marker}},
          value,
          _end | rest
-       ]), do: {"&#" <> x <> value <> ";", String.to_integer(value, 16), rest}
+       ]), do: {"&#" <> marker <> value <> ";", String.to_integer(value, 16), rest}
 
   defp entity([{:html_entity_numeric, _attrs}, value, _end | rest]),
     do: {"&#" <> value <> ";", String.to_integer(value), rest}

@@ -24,29 +24,29 @@ defmodule WikitextEx.Text do
     |> trim_trailing()
   end
 
-  defguardp space_char?(c)
-            when c in 0x9..0xD or c in 0x1C..0x20 or c in 0x2000..0x200A or
-                   c in [0x85, 0xA0, 0x1680, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000]
+  defguardp space_char?(char)
+            when char in 0x9..0xD or char in 0x1C..0x20 or char in 0x2000..0x200A or
+                   char in [0x85, 0xA0, 0x1680, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000]
 
-  defp all_space?(<<c::utf8, rest::binary>>) when space_char?(c), do: all_space?(rest)
+  defp all_space?(<<char::utf8, rest::binary>>) when space_char?(char), do: all_space?(rest)
   defp all_space?(<<>>), do: true
   defp all_space?(_text), do: false
 
-  defp drop_leading_space(<<c::utf8, rest::binary>>) when space_char?(c),
+  defp drop_leading_space(<<char::utf8, rest::binary>>) when space_char?(char),
     do: drop_leading_space(rest)
 
   defp drop_leading_space(text), do: text
 
   # The byte offset just past the last non-whitespace character.
-  defp content_end(<<c::utf8, rest::binary>>, offset, last) when space_char?(c),
-    do: content_end(rest, offset + char_size(c), last)
+  defp content_end(<<char::utf8, rest::binary>>, offset, last) when space_char?(char),
+    do: content_end(rest, offset + char_size(char), last)
 
-  defp content_end(<<c::utf8, rest::binary>>, offset, _last) do
-    end_of_char = offset + char_size(c)
+  defp content_end(<<char::utf8, rest::binary>>, offset, _last) do
+    end_of_char = offset + char_size(char)
     content_end(rest, end_of_char, end_of_char)
   end
 
   defp content_end(<<>>, _offset, last), do: last
 
-  defp char_size(c), do: byte_size(<<c::utf8>>)
+  defp char_size(char), do: byte_size(<<char::utf8>>)
 end

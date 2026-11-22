@@ -50,7 +50,9 @@ defmodule WikitextEx.Test.Reference do
     [%{"type" => Atom.to_string(type), "meta" => json(meta), "children" => tree(children)}]
   end
 
-  defp json(map) when is_map(map), do: Map.new(map, fn {k, v} -> {to_string(k), json(v)} end)
+  defp json(map) when is_map(map),
+    do: Map.new(map, fn {key, value} -> {to_string(key), json(value)} end)
+
   defp json(list) when is_list(list), do: Enum.map(list, &json/1)
 
   defp json(tuple) when is_tuple(tuple) do
@@ -61,8 +63,8 @@ defmodule WikitextEx.Test.Reference do
 
   defp json(value), do: value
 
-  defp merge_text([a, b | rest]) when is_binary(a) and is_binary(b),
-    do: merge_text([a <> b | rest])
+  defp merge_text([text, next | rest]) when is_binary(text) and is_binary(next),
+    do: merge_text([text <> next | rest])
 
   defp merge_text([node | rest]), do: [node | merge_text(rest)]
   defp merge_text([]), do: []

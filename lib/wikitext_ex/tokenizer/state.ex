@@ -48,33 +48,33 @@ defmodule WikitextEx.Tokenizer.State do
   @spec ahead(t(), pos_integer()) :: [char() | :end]
   def ahead(%{text: text, pos: pos}, count), do: chars_from(text, pos, count)
 
-  @doc "The character `n` characters ahead of the position, or `:end`."
+  @doc "The character `distance` characters ahead of the position, or `:end`."
   @spec peek(t(), non_neg_integer()) :: char() | :end
-  def peek(s, n) do
-    s
-    |> ahead(n + 1)
+  def peek(state, distance) do
+    state
+    |> ahead(distance + 1)
     |> List.last()
   end
 
-  @doc "The character `n` characters behind the position, or `:start`."
+  @doc "The character `distance` characters behind the position, or `:start`."
   @spec behind(t(), pos_integer()) :: char() | :start
-  def behind(%{text: text, pos: pos}, n), do: char_before(text, pos, n)
+  def behind(%{text: text, pos: pos}, distance), do: char_before(text, pos, distance)
 
   @doc "Moves the position `count` characters on."
   @spec forward(t(), non_neg_integer()) :: t()
-  def forward(s, count \\ 1)
-  def forward(s, 0), do: s
+  def forward(state, count \\ 1)
+  def forward(state, 0), do: state
 
-  def forward(%{text: text, pos: pos} = s, count) do
+  def forward(%{text: text, pos: pos} = state, count) do
     case char_at(text, pos) do
-      :end -> s
-      char -> forward(%{s | pos: pos + char_size(char)}, count - 1)
+      :end -> state
+      char -> forward(%{state | pos: pos + char_size(char)}, count - 1)
     end
   end
 
   @doc "Moves the position to `pos`, a byte offset saved earlier."
   @spec seek(t(), non_neg_integer()) :: t()
-  def seek(s, pos), do: %{s | pos: pos}
+  def seek(state, pos), do: %{state | pos: pos}
 
   @doc "The text from the position up to the first byte `stop?` holds for."
   @spec text_run(t(), (byte() -> boolean())) :: String.t()
@@ -99,16 +99,16 @@ defmodule WikitextEx.Tokenizer.State do
   def context(%{frames: [frame | _frames]}), do: frame.context
 
   @spec put_context(t(), non_neg_integer()) :: t()
-  def put_context(s, context), do: update_frame(s, &%{&1 | context: context})
+  def put_context(state, context), do: update_frame(state, &%{&1 | context: context})
 
   @spec add_flags(t(), non_neg_integer()) :: t()
-  def add_flags(s, flags), do: put_context(s, bor(context(s), flags))
+  def add_flags(state, flags), do: put_context(state, bor(context(state), flags))
 
   @spec remove_flags(t(), non_neg_integer()) :: t()
-  def remove_flags(s, flags), do: put_context(s, band(context(s), bnot(flags)))
+  def remove_flags(state, flags), do: put_context(state, band(context(state), bnot(flags)))
 
   @spec toggle_flags(t(), non_neg_integer()) :: t()
-  def toggle_flags(s, flags), do: put_context(s, bxor(context(s), flags))
+  def toggle_flags(state, flags), do: put_context(state, bxor(context(state), flags))
 
   @doc "The route of the current frame."
   @spec route(t()) :: {non_neg_integer(), non_neg_integer()}
@@ -123,41 +123,46 @@ defmodule WikitextEx.Tokenizer.State do
   def pending_text(%{frames: [frame | _frames]}), do: frame.text
 
   @spec put_pending_text(t(), [String.t()]) :: t()
-  def put_pending_text(s, text), do: update_frame(s, &%{&1 | text: text})
+  def put_pending_text(state, text), do: update_frame(state, &%{&1 | text: text})
 
   @doc "Removes the current frame's last token, which follows all its text."
   @spec take_last_token(t()) :: {term(), t()}
   def take_last_token(
-        %{frames: [%Frame{tokens: [token | tokens], text: []} = frame | frames]} = s
-      ), do: {token, %{s | frames: [%{frame | tokens: tokens} | frames]}}
+        %{frames: [%Frame{tokens: [token | tokens], text: []} = frame | frames]} = state
+      ), do: {token, %{state | frames: [%{frame | tokens: tokens} | frames]}}
 
   @doc "Replaces the current frame's tokens, in order, with `fun` of them."
   @spec map_tokens(t(), ([term()] -> [term()])) :: t()
-  def map_tokens(s, fun) do
-    s
+  def map_tokens(state, fun) do
+    state
     |> flush_text()
     |> update_frame(&%{&1 | tokens: map_in_order(&1.tokens, fun)})
   end
 
   @doc "Pushes a frame with `context`; fails at once on a remembered route."
   @spec push(t(), non_neg_integer()) :: t()
-  def push(s, context \\ 0) do
-    route = {s.pos, context}
-    if MapSet.member?(s.failed_routes, route), do: throw({:route_failed, context, s})
-    %{s | frames: [%Frame{context: context, route: route} | s.frames], depth: s.depth + 1}
+  def push(state, context \\ 0) do
+    route = {state.pos, context}
+    if MapSet.member?(state.failed_routes, route), do: throw({:route_failed, context, state})
+
+    %{
+      state
+      | frames: [%Frame{context: context, route: route} | state.frames],
+        depth: state.depth + 1
+    }
   end
 
   @doc "Whether pushing a frame with `context` here would fail."
   @spec failed_route?(t(), non_neg_integer()) :: boolean()
-  def failed_route?(s, context), do: MapSet.member?(s.failed_routes, {s.pos, context})
+  def failed_route?(state, context), do: MapSet.member?(state.failed_routes, {state.pos, context})
 
   @doc """
   Pops the current frame, returning its tokens. With `keep_context: true` the
   frame below takes over its context.
   """
   @spec pop(t(), keyword()) :: {[term()], t()}
-  def pop(s, opts \\ []) do
-    %{frames: [frame | frames]} = flushed = flush_text(s)
+  def pop(state, opts \\ []) do
+    %{frames: [frame | frames]} = flushed = flush_text(state)
     popped = %{flushed | frames: frames, depth: flushed.depth - 1}
     below = if opts[:keep_context], do: put_context(popped, frame.context), else: popped
     {Enum.reverse(frame.tokens), below}
@@ -165,40 +170,41 @@ defmodule WikitextEx.Tokenizer.State do
 
   @doc "Drops the current frame."
   @spec drop(t()) :: t()
-  def drop(s) do
-    {_tokens, below} = pop(s)
+  def drop(state) do
+    {_tokens, below} = pop(state)
     below
   end
 
   @doc "Remembers the current frame's route as failed."
   @spec remember_failure(t()) :: t()
-  def remember_failure(s), do: %{s | failed_routes: MapSet.put(s.failed_routes, route(s))}
+  def remember_failure(state),
+    do: %{state | failed_routes: MapSet.put(state.failed_routes, route(state))}
 
   # --- Failing ------------------------------------------------------------------
 
   @doc "Fails the current frame's construct: drops the frame, remembering its route."
   @spec fail(t()) :: no_return()
-  def fail(s) do
+  def fail(state) do
     failed =
-      s
+      state
       |> remember_failure()
       |> drop()
 
-    throw({:route_failed, context(s), failed})
+    throw({:route_failed, context(state), failed})
   end
 
   @doc "Fails the construct being read before it has a frame of its own."
   @spec reject(t()) :: no_return()
-  def reject(s), do: throw({:route_failed, 0, s})
+  def reject(state), do: throw({:route_failed, 0, state})
 
   @doc """
-  Runs `fun` on `s`: `{:ok, result}`, or `{:failed, context, s}` with the
+  Runs `fun` on `state`: `{:ok, result}`, or `{:failed, context, state}` with the
   failed frame's context and the state as it failed.
   """
   @spec attempt(t(), (t() -> result)) :: {:ok, result} | {:failed, non_neg_integer(), t()}
         when result: term()
-  def attempt(s, fun) do
-    {:ok, fun.(s)}
+  def attempt(state, fun) do
+    {:ok, fun.(state)}
   catch
     {:route_failed, context, failed} -> {:failed, context, failed}
   end
@@ -206,8 +212,8 @@ defmodule WikitextEx.Tokenizer.State do
   @doc "Like `attempt/2`, but a failure fails the caller as well, from `pos`."
   @spec attempt_or_fail_from(t(), non_neg_integer(), (t() -> result)) :: result
         when result: term()
-  def attempt_or_fail_from(s, pos, fun) do
-    case attempt(s, fun) do
+  def attempt_or_fail_from(state, pos, fun) do
+    case attempt(state, fun) do
       {:ok, result} -> result
       {:failed, context, failed} -> throw({:route_failed, context, seek(failed, pos)})
     end
@@ -216,38 +222,38 @@ defmodule WikitextEx.Tokenizer.State do
   # --- Emitting -----------------------------------------------------------------
 
   @spec emit(t(), term()) :: t()
-  def emit(s, token) do
-    s
+  def emit(state, token) do
+    state
     |> flush_text()
     |> update_frame(&%{&1 | tokens: [token | &1.tokens]})
   end
 
   @doc "Puts `token` before all others of the current frame."
   @spec emit_first(t(), term()) :: t()
-  def emit_first(s, token) do
-    s
+  def emit_first(state, token) do
+    state
     |> flush_text()
     |> update_frame(&%{&1 | tokens: List.insert_at(&1.tokens, -1, token)})
   end
 
   @spec emit_text(t(), String.t()) :: t()
-  def emit_text(s, text), do: update_frame(s, &%{&1 | text: [text | &1.text]})
+  def emit_text(state, text), do: update_frame(state, &%{&1 | text: [text | &1.text]})
 
   @spec emit_char(t(), char()) :: t()
-  def emit_char(s, char), do: emit_text(s, <<char::utf8>>)
+  def emit_char(state, char), do: emit_text(state, <<char::utf8>>)
 
   @doc "Emits `tokens`, a leading text token joining the pending text."
   @spec emit_all(t(), [term()]) :: t()
-  def emit_all(s, []), do: s
+  def emit_all(state, []), do: state
 
-  def emit_all(s, [text | tokens]) when is_binary(text) do
-    s
+  def emit_all(state, [text | tokens]) when is_binary(text) do
+    state
     |> emit_text(text)
     |> emit_all(tokens)
   end
 
-  def emit_all(s, tokens) do
-    s
+  def emit_all(state, tokens) do
+    state
     |> flush_text()
     |> update_frame(&%{&1 | tokens: Enum.reverse(tokens, &1.tokens)})
   end
@@ -276,11 +282,11 @@ defmodule WikitextEx.Tokenizer.State do
     end
   end
 
-  defp char_before(_text, 0, _n), do: :start
+  defp char_before(_text, 0, _distance), do: :start
 
-  defp char_before(text, pos, n) do
+  defp char_before(text, pos, distance) do
     start = char_start(text, pos - 1)
-    if n == 1, do: char_at(text, start), else: char_before(text, start, n - 1)
+    if distance == 1, do: char_at(text, start), else: char_before(text, start, distance - 1)
   end
 
   # The offset where the UTF-8 character with a byte at `offset` starts.
@@ -304,10 +310,10 @@ defmodule WikitextEx.Tokenizer.State do
   end
 
   # Turns the pending text into a text token.
-  defp flush_text(%{frames: [%Frame{text: []} | _frames]} = s), do: s
+  defp flush_text(%{frames: [%Frame{text: []} | _frames]} = state), do: state
 
-  defp flush_text(s) do
-    update_frame(s, fn frame ->
+  defp flush_text(state) do
+    update_frame(state, fn frame ->
       text =
         frame.text
         |> Enum.reverse()
@@ -317,8 +323,8 @@ defmodule WikitextEx.Tokenizer.State do
     end)
   end
 
-  defp update_frame(%{frames: [frame | frames]} = s, fun),
-    do: %{s | frames: [fun.(frame) | frames]}
+  defp update_frame(%{frames: [frame | frames]} = state, fun),
+    do: %{state | frames: [fun.(frame) | frames]}
 
-  defguard nestable(s) when :erlang.map_get(:depth, s) < @max_depth
+  defguard nestable(state) when :erlang.map_get(:depth, state) < @max_depth
 end
