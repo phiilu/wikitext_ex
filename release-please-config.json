@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "c94254d2196a9b705d632e31e79448bbdc11619e",
+  "packages": {
+    ".": {
+      "release-type": "elixir",
+      "package-name": "wikitext_ex",
+      "bump-minor-pre-major": true,
+      "extra-files": ["README.md"]
+    }
+  }
+}

@@ -21,13 +21,15 @@ A MediaWiki wikitext parser for Elixir that converts wikitext markup into struct
 
 Add `wikitext_ex` to your list of dependencies in `mix.exs`:
 
+<!-- x-release-please-start-version -->
 ```elixir
 def deps do
   [
-    {:wikitext_ex, "~> 0.1.0"}
+    {:wikitext_ex, "~> 0.1.1"}
   ]
 end
 ```
+<!-- x-release-please-end -->
 
 ## Usage
 
