@@ -5,7 +5,7 @@ defmodule WikitextEx.Test.Reference do
 
   The reference is mwparserfromhell's tree, where every list marker is a node of
   its own followed by the line's content as siblings. WikitextEx groups a line's
-  content into its list item, so `tree/1` writes each list item back out flat.
+  content into its list item, so each list item is written back out flat.
   Both sides merge adjacent text, as the split of a text node at a list item's
   line end is no difference between the two.
   """
@@ -32,8 +32,8 @@ defmodule WikitextEx.Test.Reference do
     assert WikitextEx.to_wikitext(nodes) == reference["input"]
   end
 
-  @doc "A reference tree with adjacent text merged."
-  def normalize(nodes) when is_list(nodes) do
+  # A reference tree with adjacent text merged.
+  defp normalize(nodes) when is_list(nodes) do
     nodes
     |> Enum.map(fn
       %{"children" => children} = node -> %{node | "children" => normalize(children)}
@@ -42,8 +42,8 @@ defmodule WikitextEx.Test.Reference do
     |> merge_text()
   end
 
-  @doc "A WikitextEx tree in the reference's shape."
-  def tree(nodes) when is_list(nodes) do
+  # A WikitextEx tree in the reference's shape.
+  defp tree(nodes) when is_list(nodes) do
     nodes
     |> Enum.flat_map(&flatten/1)
     |> merge_text()

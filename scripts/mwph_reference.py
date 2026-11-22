@@ -24,7 +24,6 @@ from pathlib import Path
 import mwparserfromhell
 from mwparserfromhell import nodes
 from mwparserfromhell.nodes.extras import Parameter
-from mwparserfromhell.parser import tokens as T
 from mwparserfromhell.parser.builder import Builder
 
 
@@ -84,46 +83,46 @@ def dump_param(param: Parameter):
     return node("param", meta, dump_nodes(param.value))
 
 
-def dump_node(n):
-    if isinstance(n, nodes.Text):
-        return n.value
-    if isinstance(n, nodes.Template):
-        name, padding = split_padding(str(n.name))
+def dump_node(wiki_node):
+    if isinstance(wiki_node, nodes.Text):
+        return wiki_node.value
+    if isinstance(wiki_node, nodes.Template):
+        name, padding = split_padding(str(wiki_node.name))
         return node(
             "template",
             {"name": name, "name_padding": padding},
-            [dump_param(p) for p in n.params],
+            [dump_param(param) for param in wiki_node.params],
         )
-    if isinstance(n, nodes.Argument):
-        name, padding = split_padding(str(n.name))
-        meta = {"name": name, "name_padding": padding, "default": n.default is not None}
-        return node("argument", meta, dump_nodes(n.default))
-    if isinstance(n, nodes.Wikilink):
-        target, padding = split_padding(str(n.title))
-        meta = {"target": target, "target_padding": padding, "pipe": n.text is not None}
-        return node("link", meta, dump_nodes(n.text))
-    if isinstance(n, nodes.ExternalLink):
-        if n.title is None:
+    if isinstance(wiki_node, nodes.Argument):
+        name, padding = split_padding(str(wiki_node.name))
+        meta = {"name": name, "name_padding": padding, "default": wiki_node.default is not None}
+        return node("argument", meta, dump_nodes(wiki_node.default))
+    if isinstance(wiki_node, nodes.Wikilink):
+        target, padding = split_padding(str(wiki_node.title))
+        meta = {"target": target, "target_padding": padding, "pipe": wiki_node.text is not None}
+        return node("link", meta, dump_nodes(wiki_node.text))
+    if isinstance(wiki_node, nodes.ExternalLink):
+        if wiki_node.title is None:
             separator = None
         else:
-            separator = "" if n.suppress_space else " "
-        meta = {"url": str(n.url), "brackets": n.brackets, "separator": separator}
-        return node("external_link", meta, dump_nodes(n.title))
-    if isinstance(n, nodes.Heading):
-        return node("heading", {"level": n.level}, dump_nodes(n.title))
-    if isinstance(n, nodes.Comment):
-        return node("comment", {"content": n.contents})
-    if isinstance(n, nodes.HTMLEntity):
-        return node("entity", {"source": str(n), "char": normalized_char(n)})
-    if isinstance(n, nodes.Tag):
-        return dump_tag(n)
-    raise TypeError(f"unknown node {type(n).__name__}")
+            separator = "" if wiki_node.suppress_space else " "
+        meta = {"url": str(wiki_node.url), "brackets": wiki_node.brackets, "separator": separator}
+        return node("external_link", meta, dump_nodes(wiki_node.title))
+    if isinstance(wiki_node, nodes.Heading):
+        return node("heading", {"level": wiki_node.level}, dump_nodes(wiki_node.title))
+    if isinstance(wiki_node, nodes.Comment):
+        return node("comment", {"content": wiki_node.contents})
+    if isinstance(wiki_node, nodes.HTMLEntity):
+        return node("entity", {"source": str(wiki_node), "char": normalized_char(wiki_node)})
+    if isinstance(wiki_node, nodes.Tag):
+        return dump_tag(wiki_node)
+    raise TypeError(f"unknown node {type(wiki_node).__name__}")
 
 
-def dump_tag(n):
-    markup = n.wiki_markup
-    attrs = [dump_attr(a) for a in n.attributes]
-    contents = dump_nodes(n.contents) if not n.self_closing else []
+def dump_tag(tag):
+    markup = tag.wiki_markup
+    attrs = [dump_attr(attr) for attr in tag.attributes]
+    contents = dump_nodes(tag.contents) if not tag.self_closing else []
     if markup == "''":
         return node("italic", {}, contents)
     if markup == "'''":
@@ -134,33 +133,33 @@ def dump_tag(n):
         return node("hr", {"markup": markup})
     if markup in ("{|", "|-"):
         type_ = "table" if markup == "{|" else "table_row"
-        return node(type_, {"attributes": attrs, "padding": n.padding}, contents)
+        return node(type_, {"attributes": attrs, "padding": tag.padding}, contents)
     if markup in ("|", "||", "!", "!!"):
         meta = {
-            "header": str(n.tag) == "th",
+            "header": str(tag.tag) == "th",
             "markup": markup,
             "attributes": attrs,
-            "padding": n.padding,
-            "separator": n.wiki_style_separator,
+            "padding": tag.padding,
+            "separator": tag.wiki_style_separator,
         }
         return node("table_cell", meta, contents)
     if markup:
         raise TypeError(f"unknown wiki markup {markup!r}")
     meta = {
-        "tag": str(n.tag),
+        "tag": str(tag.tag),
         "attributes": attrs,
-        "self_closing": n.self_closing,
-        "padding": n.padding,
-        "implicit": n.implicit,
-        "invalid": n.invalid,
-        "closing_tag": None if n.self_closing else str(n.closing_tag),
+        "self_closing": tag.self_closing,
+        "padding": tag.padding,
+        "implicit": tag.implicit,
+        "invalid": tag.invalid,
+        "closing_tag": None if tag.self_closing else str(tag.closing_tag),
     }
     return node("html_tag", meta, contents)
 
 
 def reference(name, text):
     tokens = tokenizer().tokenize(text)
-    dumped_tokens = [dump_token(t) for t in tokens]
+    dumped_tokens = [dump_token(token) for token in tokens]
     tree = Builder().build(tokens)
     assert str(tree) == text, f"{name}: mwparserfromhell did not round-trip"
     return {"name": name, "input": text, "tokens": dumped_tokens, "tree": dump_nodes(tree)}
