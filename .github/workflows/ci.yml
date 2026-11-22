@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Weekly on main: a new fuzz batch, and the audits against new advisories.
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -70,6 +74,9 @@ jobs:
       MISE_TASK_RUN_AUTO_INSTALL: "false"
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The pull request's changes are diffed against its base.
+          fetch-depth: 0
       - name: Set up Elixir
         id: beam
         uses: erlef/setup-beam@v1.24.1
@@ -93,7 +100,28 @@ jobs:
       - run: mise run reference:edge-cases
       - name: Check the references are unchanged
         run: git diff --exit-code test/fixtures
-      - run: mise run fuzz 1 10000
+      # A pull request fuzzes only when what parses, the reference or this
+      # workflow changed: with a fixed seed nothing else can change the result.
+      - name: Check whether the parser or the reference changed
+        id: changes
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" != pull_request ] ||
+            git diff --name-only "origin/$BASE...HEAD" |
+              grep -Eq '^(lib/|scripts/|test/fixtures/|mise\.toml$|\.github/workflows/ci\.yml$)'; then
+            echo "fuzz=true" >> "$GITHUB_OUTPUT"
+          fi
+      # The weekly run fuzzes a new, larger batch, its seed the run's ID in
+      # this step's log; every other run repeats the fixed batch.
+      - name: Fuzz against the reference
+        if: steps.changes.outputs.fuzz == 'true'
+        env:
+          SEED: ${{ github.event_name == 'schedule' && github.run_id || 1 }}
+          COUNT: ${{ github.event_name == 'schedule' && 20000 || 10000 }}
+        run: mise run fuzz "$SEED" "$COUNT"
 
   # Dialyxir and ExDoc are :dev dependencies.
   dialyzer:
