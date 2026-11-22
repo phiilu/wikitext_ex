@@ -2,10 +2,63 @@
 # The versions CI checks with; the library supports Elixir 1.18 and up (mix.exs).
 elixir = "1.20.5-otp-29"
 erlang = "29.1.2"
-lefthook = "latest"
-gitleaks = "latest"
-actionlint = "latest"
+lefthook = "2.2.2"
+gitleaks = "8.30.1"
+actionlint = "1.7.12"
+# The reference script's; mwparserfromhell's C tokenizer crashes on a
+# free-threaded build, which uv may pick on its own.
+python = "3.13.18"
+uv = "0.13.9"
 
 [hooks]
 # Installs the git hooks the first time the repo is entered; idempotent.
 enter = "lefthook install > /dev/null"
+
+[env]
+# uv runs the reference script on the Python above.
+UV_PYTHON_PREFERENCE = "only-system"
+
+[tasks.setup]
+description = "Install the toolchain, the dependencies and the git hooks, and build"
+run = [
+  "mise install",
+  "lefthook install",
+  "mix deps.get",
+  "mix compile",
+  "MIX_ENV=dev mix dialyzer --plt",
+]
+
+[tasks."reference:suite"]
+description = "Regenerate the conformance suite's reference trees"
+run = '''
+version=$(sed -n 's/^#  *"mwparserfromhell==\(.*\)",*$/\1/p' scripts/mwph_reference.py)
+source=$(mktemp -d)
+curl -fsSL "https://files.pythonhosted.org/packages/source/m/mwparserfromhell/mwparserfromhell-$version.tar.gz" | tar -xz -C "$source"
+uv run scripts/mwph_reference.py mwtest "$source/mwparserfromhell-$version/tests/tokenizer" test/fixtures/mwparserfromhell/conformance.json
+cp "$source/mwparserfromhell-$version/LICENSE" test/fixtures/mwparserfromhell/LICENSE
+'''
+
+[tasks."reference:edge-cases"]
+description = "Regenerate the edge cases' reference trees"
+run = "uv run scripts/mwph_reference.py files test/fixtures/edge_cases test/fixtures/edge_cases.json"
+
+[tasks.corpus]
+description = "Test a directory of .wikitext pages against the reference"
+usage = 'arg "<pages>" help="A directory of .wikitext files"'
+run = '''
+reference="$(mktemp -d)/corpus.json"
+uv run scripts/mwph_reference.py files "$usage_pages" "$reference"
+WIKITEXT_CORPUS_REFERENCE="$reference" mix test --only corpus
+'''
+
+[tasks.fuzz]
+description = "Test generated inputs against the reference"
+usage = '''
+arg "[seed]" default="1" help="The generator's seed"
+arg "[count]" default="10000" help="How many inputs to generate"
+'''
+run = '''
+pages="$(mktemp -d)/pages"
+uv run scripts/fuzz_inputs.py "$pages" "$usage_seed" "$usage_count"
+mise run corpus "$pages"
+'''

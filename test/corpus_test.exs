@@ -1,14 +1,13 @@
 defmodule WikitextEx.CorpusTest do
   @moduledoc """
-  WikitextEx against a corpus of real pages, for content that cannot ship with
-  the library. Generate a reference for a directory of `.wikitext` files with
+  WikitextEx against a reference generated outside the suite: real pages,
+  whose content cannot ship with the library, or a fuzz batch.
 
-      python -I scripts/mwph_reference.py files path/to/pages corpus.json
+      mise run corpus path/to/pages   # a directory of `.wikitext` files
+      mise run fuzz [seed] [count]    # generated inputs, `scripts/fuzz_inputs.py`
 
-  and run
-
-      WIKITEXT_CORPUS_REFERENCE=corpus.json mix test --only corpus
-
+  Both generate the reference and run this module on it, through
+  `WIKITEXT_CORPUS_REFERENCE`.
   """
   use ExUnit.Case, async: true
 

@@ -1,3 +1,9 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#   "mwparserfromhell==0.7.2",
+# ]
+# ///
 """
 Generate reference output from mwparserfromhell for WikitextEx's conformance tests.
 
@@ -8,10 +14,11 @@ the node tree its builder produces, the tree written in WikitextEx's AST shape
 Inputs are either mwparserfromhell's own tokenizer suite (`.mwtest` files, only the
 `input:` lines are read) or a directory of `.wikitext` files.
 
-Usage (needs mwparserfromhell installed, e.g. in a virtualenv):
+The mise tasks `reference:suite`, `reference:edge-cases` and `corpus` run it
+through uv, on the mwparserfromhell version pinned above:
 
-    python -I scripts/mwph_reference.py mwtest path/to/mwparserfromhell/tests/tokenizer out.json
-    python -I scripts/mwph_reference.py files path/to/wikitext_dir out.json
+    uv run scripts/mwph_reference.py mwtest path/to/mwparserfromhell/tests/tokenizer out.json
+    uv run scripts/mwph_reference.py files path/to/wikitext_dir out.json
 
 Set MWPH_TOKENIZER=python to use the pure-Python tokenizer instead of the C one.
 """
@@ -21,7 +28,6 @@ import os
 import sys
 from pathlib import Path
 
-import mwparserfromhell
 from mwparserfromhell import nodes
 from mwparserfromhell.nodes.extras import Parameter
 from mwparserfromhell.parser.builder import Builder
@@ -193,7 +199,7 @@ def main():
     cases = [reference(name, text) for name, text in inputs]
     with open(out, "w", encoding="utf8") as fp:
         json.dump(
-            {"mwparserfromhell": mwparserfromhell.__version__, "cases": cases},
+            {"cases": cases},
             fp,
             ensure_ascii=False,
             indent=None,

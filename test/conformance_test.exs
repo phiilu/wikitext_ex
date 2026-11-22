@@ -4,17 +4,18 @@ defmodule WikitextEx.ConformanceTest do
   by fuzzing, into the tree mwparserfromhell builds, and writes every tree back
   to its input.
 
-  The suite's inputs are mwparserfromhell's (MIT); the expected trees were
-  generated from mwparserfromhell 0.7.2, its C tokenizer, with
-  `scripts/mwph_reference.py`. The edge cases are in `test/fixtures/edge_cases`.
+  The suite's inputs are mwparserfromhell's (MIT); the expected trees are its C
+  tokenizer's, at the version `scripts/mwph_reference.py` pins, and
+  `mise run reference:suite` regenerates them. The edge cases are in
+  `test/fixtures/edge_cases`.
 
   Where mwparserfromhell's C and Python tokenizers disagree, the C one is the
   reference. Its C tokenizer stops reading at `NUL`, where WikitextEx reads on,
   so no reference input holds one.
 
   A difference from the reference becomes an edge case: add a `.wikitext` file
-  to `test/fixtures/edge_cases`, regenerate `edge_cases.json` with the script's
-  `files` mode, and see it fail before fixing it.
+  to `test/fixtures/edge_cases`, regenerate `edge_cases.json` with
+  `mise run reference:edge-cases`, and see it fail before fixing it.
   """
   use ExUnit.Case, async: true
 
