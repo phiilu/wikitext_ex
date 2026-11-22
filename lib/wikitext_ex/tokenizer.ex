@@ -16,7 +16,7 @@ defmodule WikitextEx.Tokenizer do
   # character to read. Text tokens are binaries; all others are `{type, attrs}`.
 
   import Bitwise
-  import WikitextEx.Tokenizer.State, only: [nestable: 1]
+  import WikitextEx.Tokenizer.State, only: [in_heading: 1, nestable: 1]
 
   alias WikitextEx.Entities
   alias WikitextEx.Text
@@ -137,7 +137,6 @@ defmodule WikitextEx.Tokenizer do
   defguardp has(context, flag) when band(context, flag) != 0
   defguardp marker(char) when char in @markers or char in [:start, :end]
   defguardp line_start(char) when char in [?\n, :start]
-  defguardp in_heading(state) when :erlang.map_get(:heading?, state)
 
   @spec tokenize(String.t(), keyword()) :: [term()]
   def tokenize(text, opts \\ []) do
@@ -209,15 +208,8 @@ defmodule WikitextEx.Tokenizer do
   end
 
   # Takes the text up to the next character that may be markup.
-  defp take_plain_text(state) do
-    text = State.rest(state)
-    State.take_text(state, binary_part(text, 0, plain_length(text, 0)))
-  end
-
-  defp plain_length(<<byte, rest::binary>>, length) when byte not in @markers,
-    do: plain_length(rest, length + 1)
-
-  defp plain_length(_text, length), do: length
+  defp take_plain_text(state),
+    do: State.take_text(state, State.text_run(state, &(&1 in @markers)))
 
   # The text ends inside the current construct.
   defp finish(state) do
@@ -415,8 +407,8 @@ defmodule WikitextEx.Tokenizer do
 
   defp markup(state, [char | _ahead], _last, context)
        when char in [?\n, ?:] and has(context, @dl_term) do
-    state = definition_term_end(state)
-    if char == ?\n, do: State.remove_flags(state, @table_cell_line), else: state
+    ended = definition_term_end(state)
+    if char == ?\n, do: State.remove_flags(ended, @table_cell_line), else: ended
   end
 
   defp markup(state, [?{, ?| | _ahead] = ahead, _last, context) do
@@ -460,12 +452,10 @@ defmodule WikitextEx.Tokenizer do
     braces =
       repeats(state, ?{)
 
-    state =
-      state
-      |> State.forward(braces)
-      |> State.push()
-
-    nest_braces(state, braces, false)
+    state
+    |> State.forward(braces)
+    |> State.push()
+    |> nest_braces(braces, false)
   end
 
   defp nest_braces(state, 0, _has_content), do: finish_braces(state)
@@ -956,7 +946,11 @@ defmodule WikitextEx.Tokenizer do
       repeats(state, ?=)
 
     context = @heading_level_1 <<< min(equals - 1, 5)
-    in_heading = State.forward(%{state | heading?: true}, equals)
+
+    in_heading =
+      state
+      |> State.enter_heading()
+      |> State.forward(equals)
 
     read =
       case State.attempt(in_heading, &parse(&1, context)) do
@@ -973,7 +967,7 @@ defmodule WikitextEx.Tokenizer do
           |> emit_repeated("=", equals)
       end
 
-    %{read | heading?: false}
+    State.leave_heading(read)
   end
 
   defp emit_repeated(state, _text, count) when count <= 0, do: state
@@ -1792,7 +1786,11 @@ defmodule WikitextEx.Tokenizer do
   # Closes the current style; of five, the rest are read again.
   defp close_style(state, 5, context) do
     reread = if has(context, @style_italics), do: 3, else: 2
-    done(State.pop(%{state | pos: state.pos - reread}))
+
+    state
+    |> State.seek(state.pos - reread)
+    |> State.pop()
+    |> done()
   end
 
   defp close_style(state, _ticks, _context), do: done(State.pop(state))

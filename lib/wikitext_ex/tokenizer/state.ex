@@ -281,6 +281,20 @@ defmodule WikitextEx.Tokenizer.State do
     |> update_frame(&%{&1 | tokens: Enum.reverse(tokens, &1.tokens)})
   end
 
+  @doc "Whether another construct may nest at the current depth."
+  defguard nestable(state) when :erlang.map_get(:depth, state) < @max_depth
+
+  @doc "Whether the position is inside a heading's title."
+  defguard in_heading(state) when :erlang.map_get(:heading?, state)
+
+  @doc "Marks the position as inside a heading's title."
+  @spec enter_heading(t()) :: t()
+  def enter_heading(state), do: %{state | heading?: true}
+
+  @doc "Marks the position as outside any heading's title."
+  @spec leave_heading(t()) :: t()
+  def leave_heading(state), do: %{state | heading?: false}
+
   # --- Private ------------------------------------------------------------------
 
   defp run_length(<<byte, rest::binary>>, stop?, length) do
@@ -301,10 +315,12 @@ defmodule WikitextEx.Tokenizer.State do
   defp take_chars(<<>>, count), do: List.duplicate(:end, count)
 
   # The byte size of the first `count` characters of `text`, or of all of it.
-  defp chars_size(<<char::utf8, rest::binary>>, count) when count > 0,
-    do: char_size(char) + chars_size(rest, count - 1)
+  defp chars_size(text, count), do: byte_size(text) - byte_size(drop_chars(text, count))
 
-  defp chars_size(_text, _count), do: 0
+  defp drop_chars(<<_char::utf8, rest::binary>>, count) when count > 0,
+    do: drop_chars(rest, count - 1)
+
+  defp drop_chars(text, _count), do: text
 
   defp char_before(_text, 0, _distance), do: :start
 
@@ -319,11 +335,6 @@ defmodule WikitextEx.Tokenizer.State do
       do: char_start(text, offset - 1),
       else: offset
   end
-
-  defp char_size(char) when char < 0x80, do: 1
-  defp char_size(char) when char < 0x800, do: 2
-  defp char_size(char) when char < 0x10000, do: 3
-  defp char_size(_char), do: 4
 
   # Frames keep their tokens newest first.
   defp map_in_order(tokens, fun) do
@@ -349,6 +360,4 @@ defmodule WikitextEx.Tokenizer.State do
 
   defp update_frame(%{frames: [frame | frames]} = state, fun),
     do: %{state | frames: [fun.(frame) | frames]}
-
-  defguard nestable(state) when :erlang.map_get(:depth, state) < @max_depth
 end

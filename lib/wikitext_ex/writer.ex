@@ -23,26 +23,26 @@ defmodule WikitextEx.Writer do
   defp write({:param, _meta, value}), do: write(value)
 
   defp write({:argument, meta, default}) do
-    default = if meta[:default] || default != [], do: ["|", write(default)], else: []
-    ["{{{", padded(meta.name, meta[:name_padding]), default, "}}}"]
+    separated_default = if meta[:default] || default != [], do: ["|", write(default)], else: []
+    ["{{{", padded(meta.name, meta[:name_padding]), separated_default, "}}}"]
   end
 
   defp write({:link, meta, text}) do
-    text = if meta[:pipe] || text != [], do: ["|", write(text)], else: []
-    ["[[", padded(meta.target, meta[:target_padding]), text, "]]"]
+    piped_text = if meta[:pipe] || text != [], do: ["|", write(text)], else: []
+    ["[[", padded(meta.target, meta[:target_padding]), piped_text, "]]"]
   end
 
   defp write({:external_link, %{brackets: false} = meta, _title}), do: meta.url
 
   defp write({:external_link, meta, title}) do
-    title =
+    separated_title =
       case {meta[:separator], title} do
         {nil, []} -> []
-        {nil, title} -> [" ", write(title)]
-        {separator, title} -> [separator, write(title)]
+        {nil, _title} -> [" ", write(title)]
+        {separator, _title} -> [separator, write(title)]
       end
 
-    ["[", meta.url, title, "]"]
+    ["[", meta.url, separated_title, "]"]
   end
 
   defp write({:heading, %{level: level}, title}) do
